@@ -6,8 +6,10 @@ import {
   buildHours, tideAt, km, ymd, hourNL, dayStart, addDays,
   type Index, type Tide, type Weather, type Marine, type River, type Station, type TempStation,
 } from './data'
-import { CHOICES, PROFILES, LABELS, closedSeason, scoreHour, bft, type Choice, type HourInput, type HourScore, type Profile, type Water } from './score'
+import { CHOICES, PROFILES, LABELS, closedSeason, scoreHour, factorCosts, bft, type Choice, type Factor, type HourInput, type HourScore, type Profile, type Water } from './score'
 import { chart, scrubTo, indexAt, initCharts } from './chart'
+import { findWaters, widthLabel, type WaterBody } from './waters'
+import { simulate } from './watertemp'
 
 const BASE = import.meta.env.BASE_URL
 const icon = (n: string) => `${BASE}icons/${n}.webp`
@@ -27,6 +29,7 @@ const S = {
   sheet: null as null | 'loc' | 'menu',
   detail: null as null | string,
   moonDay: 0,
+  wSel: null as null | number, // gekozen water; null = automatisch het water met de beste kans
   search: [] as { name: string; sub: string; lat: number; lon: number }[],
   locating: false,
   error: '' as string,
@@ -53,7 +56,13 @@ const D = {
   tideList: [] as (Station & { d: number })[],
   hours: [] as HourInput[],
   hoursWide: [] as HourInput[],
+  allWaters: [] as WaterBody[],
+  waters: [] as (WaterBody | null)[],            // wateren in de buurt (null = niet bekend, val terug op meetpunt)
+  waterInfo: [] as WaterInfo[],
+  waterHours: [] as { wide: HourInput[]; hours: HourInput[] }[],
+  wIdx: 0,
 }
+interface WaterInfo { src: string; uncertain: boolean; depthUnknown: boolean }
 
 // ---------- hulpjes ----------
 const fmt = (n: number, d = 0) => n.toLocaleString('nl-NL', { minimumFractionDigits: d, maximumFractionDigits: d })
@@ -128,6 +137,9 @@ async function loadAll() {
     Object.assign(D, { index, weather, marine, river })
     if (!S.water) { S.water = 'zoet'; persist() }
     D.tideList = index.tide.map(s => ({ ...s, d: km(s, S.loc!) })).sort((a, b) => a.d - b.d)
+    // Wateren in de buurt (TOP10NL); bij een gezochte plek een ruimere straal dan bij GPS
+    D.allWaters = await findWaters(lat, lon, S.loc.gps ? 250 : 500).catch(() => [])
+    S.wSel = null
     await pickTide()
   } catch (e) {
     console.error(e)
@@ -153,32 +165,82 @@ function pickTemp() {
   D.tempStation = coast ?? (list[0] && list[0].d < 30 ? list[0] : null)
 }
 
-function waterNow(): { t: number; src: string; dist: number | null } | null {
-  if (D.tempStation) return { t: D.tempStation.t, src: D.tempStation.n, dist: D.tempStation.d }
+const MEASURED: WaterBody['kind'][] = ['meer', 'rivier', 'haven', 'zee']
+
+/**
+ * Watertemperatuur per uur voor één water.
+ * Polderwater (sloot, watergang, plas, vaart tot 50 m): warmtebalansmodel, getoetst aan HHNK-metingen.
+ * Groot water (meer, rivier, haven, zee, breed kanaal): meting van Rijkswaterstaat, met de trend uit het model.
+ */
+function waterSeries(b: WaterBody | null): { series: Map<number, number> | null; info: WaterInfo } {
+  const W = D.weather!
+  const met = { t: W.time, ta: W.temp, u: W.wind, sw: W.sw, cc: W.cloud, rh: W.rh }
   const now = Math.floor(Date.now() / 3600000) * 3600000
+  const toMap = (vals: number[]) => new Map(W.time.map((t, i) => [t, vals[i]]))
+  const big = !b || MEASURED.includes(b.kind) || (b.depth ?? 0) >= 3.2
+  if (!big) {
+    const sim = simulate(met, b!.depth ?? 1.5, b!.areaKm2)
+    const label = b!.kind === 'sloot' ? 'berekend voor een sloot, ± 1,5°' : b!.depth == null ? 'berekend, diepte onbekend' : `berekend voor ± ${fmt(b!.depth, 1)} m diep`
+    return { series: toMap(sim), info: { src: label, uncertain: b!.kind === 'sloot', depthUnknown: b!.depth == null } }
+  }
+  // Groot water: meetpunt van Rijkswaterstaat, het model geeft alleen de verandering
+  const sim = simulate(met, Math.min(4, b?.depth ?? 4), b?.areaKm2 ?? 5)
+  const iNow = W.time.indexOf(now)
+  // Een meetpunt telt alleen als het waarschijnlijk in hetzelfde water ligt
+  const maxKm = !b || ['meer', 'rivier', 'zee'].includes(b.kind) ? 30 : b.kind === 'haven' ? 15 : 5
+  if (D.tempStation && D.tempStation.d <= maxKm && iNow >= 0) {
+    const base = D.tempStation.t - sim[iNow]
+    return { series: toMap(sim.map(v => v + base)), info: { src: `gemeten: ${esc(D.tempStation.n)}, ${fmt(D.tempStation.d)} km`, uncertain: false, depthUnknown: false } }
+  }
   if (S.water === 'zout' && D.marine) {
-    const i = D.marine.time.indexOf(now)
-    const v = i >= 0 ? D.marine.sst[i] : null
-    if (v != null) return { t: v, src: 'zeemodel', dist: null }
+    const m = new Map<number, number>()
+    D.marine.time.forEach((t, i) => { if (D.marine!.sst[i] != null) m.set(t, D.marine!.sst[i]!) })
+    if (m.size) return { series: m, info: { src: 'zeemodel', uncertain: false, depthUnknown: false } }
   }
-  if (D.weather) {
-    // Ondiep zoet water volgt het gemiddelde van de lucht over ongeveer een week
-    const W = D.weather
-    const vals = W.time.map((t, i) => [t, W.temp[i]] as const).filter(([t]) => t <= now && t > now - 7 * 86400000).map(([, v]) => v)
-    if (vals.length) return { t: vals.reduce((s, x) => s + x, 0) / vals.length + (S.water === 'zout' ? 1 : 0.5), src: 'geschat', dist: null }
-  }
-  return null
+  return { series: toMap(sim), info: { src: 'berekend uit het weer', uncertain: false, depthUnknown: true } }
 }
 
 function rebuild() {
   if (!D.weather || !S.loc || !S.water) return
   const from = dayStart(Date.now())
-  // Drie dagen terug (voor de grote grafieken) tot drie dagen vooruit
-  D.hoursWide = buildHours({
-    lat: S.loc.lat, lon: S.loc.lon, water: S.water, weather: D.weather, marine: D.marine, river: D.river,
-    tide: D.tide, waterNow: waterNow(),
-  }, addDays(from, -3), addDays(from, 3))
-  D.hours = D.hoursWide.filter(h => h.t >= from)
+  // Alleen wateren die bij zoet of zout passen
+  // Zout: alleen water met getij (zee, havens en rivieren aan zee). Zoet: alles behalve de zee
+  const fits = (b: WaterBody) => S.water === 'zout' ? b.tidal : b.kind !== 'zee'
+  const list: (WaterBody | null)[] = D.allWaters.filter(fits)
+  D.waters = list.length ? list : [null]
+  D.waterInfo = []
+  D.waterHours = D.waters.map(b => {
+    const { series, info } = waterSeries(b)
+    D.waterInfo.push(info)
+    // Drie dagen terug (voor de grote grafieken) tot drie dagen vooruit
+    const wide = buildHours({
+      lat: S.loc!.lat, lon: S.loc!.lon, water: S.water!, weather: D.weather!, marine: D.marine, river: D.river,
+      tide: D.tide, wt: { series, kind: b?.kind ?? 'onbekend', uncertain: info.uncertain },
+    }, addDays(from, -3), addDays(from, 3))
+    return { wide, hours: wide.filter(h => h.t >= from) }
+  })
+  pickWater()
+}
+
+/** Kies het water: het gekozen, of anders het water met de beste kans (nu, of op het beste moment van de dag) */
+function pickWater() {
+  if (!D.waterHours.length) return
+  let idx = S.wSel != null && S.wSel < D.waterHours.length ? S.wSel : 0
+  if (S.wSel == null && D.waterHours.length > 1) {
+    const c = choice()
+    const from = addDays(Date.now(), S.day), to = addDays(Date.now(), S.day + 1)
+    const nowH = Math.floor(Date.now() / 3600000) * 3600000
+    let bestV = -1
+    D.waterHours.forEach((wh, i) => {
+      const hs = wh.hours.filter(h => h.t >= from && h.t < to && (S.day > 0 || h.t >= nowH))
+      const sel = S.day === 0 ? hs.slice(0, 1) : hs
+      const v = Math.max(...sel.map(h => scoreHour(c, h).raw))
+      if (v > bestV) { bestV = v; idx = i }
+    })
+  }
+  D.wIdx = idx
+  D.hoursWide = D.waterHours[idx].wide
+  D.hours = D.waterHours[idx].hours
 }
 
 // ---------- weergave ----------
@@ -228,12 +290,12 @@ interface DayView {
   si: number; sh: HourInput; ss: HourScore
 }
 
-function dayView(): DayView | null {
+function dayView(src: HourInput[] = D.hours): DayView | null {
   const c = choice()
   const dayFrom = addDays(Date.now(), S.day)
   const dayTo = addDays(Date.now(), S.day + 1)
   const nowH = Math.floor(Date.now() / 3600000) * 3600000
-  const hours = D.hours.filter(h => h.t >= dayFrom && h.t < dayTo)
+  const hours = src.filter(h => h.t >= dayFrom && h.t < dayTo)
   if (!hours.length) return null
   const scores = hours.map(h => scoreHour(c, h))
   const future = scores.filter(s => S.day > 0 || s.t >= nowH)
@@ -296,7 +358,8 @@ function render() {
       </div>
       ${fishRow(ss!.fish)}
       <h1 class="verdict">${label}</h1>
-      <p class="meta">${heroWhen}${c.members.length > 1 ? ` · vooral ${esc(ss!.best.toLowerCase())}` : ''}</p>
+      <p class="meta">${heroWhen}${c.members.length > 1 ? ` · vooral ${esc(ss!.best.toLowerCase())}` : ''}${D.waters.length === 1 && D.waters[0] ? ` · ${esc(waterName(D.waters[0]))}` : ''} · <span class="why">Waarom?</span></p>
+      ${waterRow(v)}
       ${closed ? `<div class="notice">${closed}</div>` : ''}
     </section>
 
@@ -315,6 +378,27 @@ function render() {
   ${S.sheet === 'menu' ? menuSheet() : ''}`
 
   initCharts($app)
+}
+
+function waterName(b: WaterBody) {
+  return b.ownName ? b.name : b.name.toLowerCase()
+}
+
+/** Meerdere wateren in de buurt: per water de kans op het gekozen moment en het beste moment */
+function waterRow(v: DayView) {
+  if (D.waters.length < 2) return ''
+  const c = choice()
+  return `<div class="wrow">${D.waters.map((b, i) => {
+    const dv = dayView(D.waterHours[i].hours)
+    const h = dv?.hours.find(x => x.t === v.sh.t)
+    const f = h ? scoreHour(c, h).fish : 0
+    const nm = b ? (b.ownName ? b.name : b.name) : 'Water'
+    const sub = b ? [b.width ? widthLabel(b.width) : b.kind === 'plas' ? 'plas' : '', `${Math.round(b.dist)} m`].filter(Boolean).join(' · ') : ''
+    return `<button class="wb ${i === D.wIdx ? 'on' : ''}" data-act="wsel" data-v="${i}">
+      <span class="wn">${esc(nm)}</span><small>${sub}</small>
+      <span class="ws">${fmt(f, f % 1 ? 1 : 0)}<i class="mfish"></i>${dv?.win ? `<em>${dv.win.replace(/:00/g, '')} u</em>` : ''}</span>
+    </button>`
+  }).join('')}</div>`
 }
 
 function springNeap(t: number): string | null {
@@ -370,8 +454,7 @@ function airAt(t: number) {
 }
 
 function waterSrc() {
-  const wn = waterNow()
-  return !wn ? '' : wn.src === 'geschat' ? 'water geschat uit de lucht' : wn.src === 'zeemodel' ? 'water uit zeemodel' : `water: ${esc(wn.src)}${wn.dist != null ? ` · ${fmt(wn.dist)} km` : ''}`
+  return D.waterInfo[D.wIdx]?.src ?? ''
 }
 
 function tempTile(hours: HourInput[], si: number) {
@@ -497,10 +580,14 @@ function detailView(k: string, v: DayView) {
   </div>`
 }
 
+const MONTHS = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december']
+const KIND_NAME: Record<string, string> = { sloot: 'sloot', watergang: 'watergang', kanaal: 'vaart of kanaal', plas: 'plas', meer: 'meer', rivier: 'rivier', haven: 'haven', zee: 'zee', onbekend: 'onbekend water' }
+
 function factorText(key: string, h: HourInput, prof: Profile | undefined): string {
   switch (key) {
-    case 'temp': return `water ${fmt(h.waterTemp ?? 0, 1)}°${prof ? `, fijn is ${prof.temp[1]}–${prof.temp[2]}°` : ''}`
-    case 'light': return h.twilight > 0.5 ? 'schemer' : h.sunAlt < -6 ? 'donker' : h.sunFrac > 0.5 ? 'felle zon' : 'daglicht'
+    case 'temp': return `water ${fmt(h.waterTemp ?? 0, 1)}°${h.waterUncertain ? ' (± 1,5°)' : ''}${prof ? `; fijn voor ${prof.name.toLowerCase()} is ${prof.temp[1]}–${prof.temp[2]}°` : ''}`
+    case 'light': return h.twilight > 0.5 ? 'schemer' : h.sunAlt < -6 ? 'donker' : h.sunFrac > 0.5 ? 'felle zon' : 'daglicht, bewolkt'
+    case 'warm': return h.waterTrend == null ? '' : Math.abs(h.waterTrend) < 0.3 ? 'watertemperatuur gelijk' : `${signed(h.waterTrend)}° in 24 uur`
     case 'tide': return `${h.tideRising ? 'opkomend' : 'afgaand'}, stroming ${fmt((h.tideFlow ?? 0) * 100)}% van het sterkst`
     case 'waves': return `golven ${fmt(h.waves ?? 0, 1)} m`
     case 'wind': return `${bft(h.windKmh)} Bft${h.onshore ? ', aanlandig' : ''}`
@@ -508,33 +595,74 @@ function factorText(key: string, h: HourInput, prof: Profile | undefined): strin
     case 'pressure': return `${signed(h.dp3)} hPa in 3 uur`
     case 'river': return `afvoer ${fmt(h.riverRatio ?? 1, 1)}× normaal`
     case 'moon': return `${fmt(SunCalc.getMoonIllumination(new Date(h.t)).fraction * 100)}% verlicht`
-    case 'season': return `${fmt(((prof?.season[h.month] ?? 1)) * 100)}% van het hoogseizoen`
+    case 'season': return `${MONTHS[h.month]}: ${fmt(((prof?.season[h.month] ?? 1)) * 100)}% van het hoogseizoen`
+    case 'habitat': return `${KIND_NAME[h.waterKind]}: ${fmt((prof?.habitat?.[h.waterKind] ?? 1) * 100)}% kans dat hij hier zit`
     default: return ''
   }
 }
-const factorName: Record<string, string> = { temp: 'Watertemperatuur', light: 'Licht', tide: 'Getijstroming', waves: 'Golven', wind: 'Wind', rain: 'Regen', pressure: 'Luchtdruk', river: 'Rivier', moon: 'Maan', season: 'Seizoen' }
+const factorName: Record<string, string> = { temp: 'Watertemperatuur', light: 'Licht', warm: 'Water warmt op', tide: 'Getijstroming', waves: 'Golven', wind: 'Wind', rain: 'Regen', pressure: 'Luchtdruk', river: 'Rivier', moon: 'Maan', season: 'Seizoen', habitat: 'Soort water' }
+const costText = (c: number) => c < 0.13 ? 'kost niets' : `kost ${c < 0.38 ? '¼' : c < 0.63 ? '½' : c < 0.88 ? '¾' : fmt(Math.round(c * 2) / 2, Math.round(c * 2) % 2 ? 1 : 0)} visje`
+
+/** Eén gewone zin: het oordeel en wat het meest remt of helpt */
+function summary(label: string, prof: Profile, costs: Factor[], h: HourInput) {
+  const big = costs.filter(f => (f.cost ?? 0) >= 0.38).sort((a, b) => b.cost! - a.cost!)
+  const good = costs.filter(f => (f.cost ?? 0) < 0.13 && f.f >= 0.9 && f.w >= 0.1).map(f => factorName[f.key].toLowerCase())
+  const why = (f: Factor) => {
+    switch (f.key) {
+      case 'temp': return `het water met ${fmt(h.waterTemp ?? 0, 1)}° ${h.waterTemp! < prof.temp[1] ? 'koud' : 'warm'} is voor ${prof.name.toLowerCase()} (fijn: ${prof.temp[1]}–${prof.temp[2]}°)`
+      case 'light': return h.sunAlt < -6 ? `${prof.name.toLowerCase()} in het donker weinig jaagt` : h.sunFrac > 0.5 ? 'de zon fel is' : `${prof.name.toLowerCase()} overdag minder actief is`
+      case 'season': return `${MONTHS[h.month]} niet het beste seizoen is`
+      case 'habitat': return `${prof.name.toLowerCase()} weinig in een ${KIND_NAME[h.waterKind]} zit`
+      case 'tide': return 'het water bijna stilstaat (kentering)'
+      case 'wind': return bft(h.windKmh) >= 6 ? 'het hard waait' : 'het windstil is'
+      case 'rain': return h.thunder ? 'het onweert' : 'er flink regen valt'
+      case 'warm': return 'het water afkoelt'
+      default: return `${factorName[f.key].toLowerCase()} tegenzit`
+    }
+  }
+  let txt = `${label}`
+  if (big.length) txt += `, vooral omdat ${why(big[0])}${big[1] ? ` en ${why(big[1])}` : ''}.`
+  else txt += '. Er remt niets echt.'
+  if (good.length) txt += ` ${good.slice(0, 2).join(' en ').replace(/^./, c => c.toUpperCase())} ${good.length > 1 ? 'zijn' : 'is'} goed.`
+  return txt
+}
 
 function scoreDetail(v: DayView) {
   const c = choice()
-  const h = v.sh
-  const ss = v.ss
-  const prof = PROFILES.find(p => p.name === ss.best)
+  const h = v.sh, ss = v.ss
+  const prof = PROFILES.find(p => p.id === ss.profile)!
+  const costs = factorCosts(prof.id, h)
+  const label = LABELS[String(ss.fish)]
   const members = c.members.length > 1 ? c.members.map(id => {
     const p = PROFILES.find(x => x.id === id)!
     const s = scoreHour({ ...c, members: [id] }, h)
     return `<div class="mrow"><span>${p.name}</span>${fishRow(s.fish)}<em>${LABELS[String(s.fish)]}</em></div>`
   }).join('') : ''
-  const rows = [...ss.factors].sort((a, b) => b.w - a.w).map(f => `
-    <div class="frow">
-      <div class="fname">${factorName[f.key] ?? f.key}<small>${f.key === 'season' ? 'vermenigvuldigt' : f.w >= 0.18 ? 'telt zwaar' : f.w >= 0.08 ? 'telt mee' : 'telt licht'}</small></div>
-      <div class="fbar"><i style="width:${Math.round(f.f * 100)}%"></i></div>
-      <div class="ftext">${factorText(f.key, h, prof)}</div>
+  const rows = costs.filter(f => factorText(f.key, h, prof)).sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0) || b.w - a.w).map(f => `
+    <div class="frow ${(f.cost ?? 0) >= 0.38 ? 'hurts' : ''}">
+      <div class="fname">${factorName[f.key] ?? f.key}<small>${factorText(f.key, h, prof)}</small></div>
+      <div class="fcost">${costText(f.cost ?? 0)}</div>
     </div>`).join('')
-  return `<div class="dsummary">${fishRow(ss.fish)}<div><b>${LABELS[String(ss.fish)]}</b><span>${dayLong(h.t)}, ${hhmm(h.t)}${c.members.length > 1 ? ` · vooral ${ss.best.toLowerCase()}` : ''}</span></div></div>
+  const b = D.waters[D.wIdx], wi = D.waterInfo[D.wIdx]
+  const water = b ? `${esc(b.ownName ? b.name : KIND_NAME[b.kind])}${b.width ? `, ${widthLabel(b.width)} breed` : ''}${b.depth != null ? `, ± ${fmt(b.depth, 1)} m diep` : ', diepte onbekend'} · ${Math.round(b.dist)} m` : 'geen water herkend'
+  return `<div class="dsummary">${fishRow(ss.fish)}<div><b>${label}</b><span>${dayLong(h.t)}, ${hhmm(h.t)}</span></div></div>
+    <p class="plain">${summary(label, prof, costs, h)}</p>
     ${members ? `<h3>Per soort</h3><div class="members">${members}</div>` : ''}
-    <h3>Waar het op rust${c.members.length > 1 ? ` (${ss.best.toLowerCase()})` : ''}</h3>
+    <h3>Wat elke factor kost${c.members.length > 1 ? ` (${prof.name.toLowerCase()})` : ''}</h3>
     <div class="factors">${rows}</div>
-    <p class="dnote">Een langere balk is gunstiger. Kies een ander uur in de grafiek op het hoofdscherm.</p>`
+    <h3>Water</h3>
+    <p class="dnote">${water}. Watertemperatuur: ${wi?.src ?? '–'}.</p>
+    <h3>Wat de app aanneemt over ${prof.name.toLowerCase()}</h3>
+    <div class="facts">
+      <div><span>Fijne watertemperatuur</span><b>${prof.temp[1]}–${prof.temp[2]}°</b></div>
+      <div><span>Licht (dag · schemer · nacht)</span><b>${[prof.light.day, prof.light.dusk, prof.light.night].map(x => fmt(x * 100)).join(' · ')}%</b></div>
+      ${prof.lightWinter ? `<div><span>In koud water</span><b>${[prof.lightWinter.day, prof.lightWinter.dusk, prof.lightWinter.night].map(x => fmt(x * 100)).join(' · ')}%</b></div>` : ''}
+      <div><span>Seizoen ${MONTHS[h.month]}</span><b>${fmt(prof.season[h.month] * 100)}%</b></div>
+    </div>
+    <div class="seasonbar">${prof.season.map((x, m) => `<i style="height:${Math.max(4, x * 100)}%" class="${m === h.month ? 'on' : ''}" title="${MONTHS[m]}"></i>`).join('')}</div>
+    <div class="seasonlabels">${['j', 'f', 'm', 'a', 'm', 'j', 'j', 'a', 's', 'o', 'n', 'd'].map(x => `<span>${x}</span>`).join('')}</div>
+    <p class="dnote">${prof.notes}</p>
+    <p class="dnote">"Kost" betekent: zoveel visjes meer als deze factor ideaal was. Niet te meten: hoe druk er gevist wordt. Bij snoek was dat in onderzoek de sterkste factor.</p>`
 }
 
 function moonViewInner() {
@@ -616,10 +744,10 @@ function tempDetail() {
   }) + `<div class="legend"><span class="lg lg-air">lucht</span><span class="lg lg-water">water</span></div>
     <div class="facts">
       <div><span>Water nu</span><b>${D.hours.find(h => h.t === now)?.waterTemp != null ? fmt(D.hours.find(h => h.t === now)!.waterTemp!, 1) + '°' : '–'}</b></div>
-      <div><span>Bron</span><b>${ts ? `${esc(ts.n)}, ${fmt(ts.d)} km` : waterSrc().replace('water ', '')}</b></div>
-      ${ts ? `<div><span>Gemeten om</span><b>${hhmm(ts.at)}</b></div>` : ''}
+      <div><span>Bron</span><b>${waterSrc()}</b></div>
+      ${ts && waterSrc().startsWith('gemeten') ? `<div><span>Gemeten om</span><b>${hhmm(ts.at)}</b></div>` : ''}
     </div>
-    <p class="dnote">De watertemperatuur is gemeten door Rijkswaterstaat${ts ? '' : ' (hier geen meetpunt in de buurt, dus geschat)'}. Terug en vooruit is ze geschat uit de luchttemperatuur${S.water === 'zout' ? ' en het zeemodel' : ''}.</p>`
+    <p class="dnote">Polderwater (sloot, watergang, plas, vaart) rekent de app uit het weer met een warmtebalans; getoetst aan 28 meetpunten van HHNK: gemiddeld 0,6° fout in watergangen, ± 1,4° in smalle sloten (kwel en doorstroming verschillen per sloot). Groot water: meting van Rijkswaterstaat.</p>`
 }
 
 function tideDetail() {
@@ -733,7 +861,8 @@ $app.addEventListener('click', async e => {
   const act = el.dataset.act, v = el.dataset.v
   if (act === 'water' && v !== S.water) { S.water = v as Water; S.sel = null; persist(); pickTemp(); rebuild(); render() }
   else if (act === 'choice') { S.choice[S.water!] = v!; persist(); render() }
-  else if (act === 'day') { S.day = Math.max(0, Math.min(2, S.day + Number(v))); S.sel = null; render() }
+  else if (act === 'day') { S.day = Math.max(0, Math.min(2, S.day + Number(v))); S.sel = null; pickWater(); render() }
+  else if (act === 'wsel') { S.wSel = Number(v); pickWater(); render() }
   else if (act === 'hour') { const t = Number(v); S.sel = S.sel === t ? null : t; render() }
   else if (act === 'open') { if (v === 'moon') S.moonDay = 0; setDetail(v!) }
   else if (act === 'close-detail') setDetail(null)

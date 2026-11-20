@@ -9,7 +9,7 @@ const url = process.argv[2] || 'http://localhost:8795/visvangst/'
     // Galaxy A54: 1080×2340 bij dpr 2,8125 = 384×832; als app ± 760 hoog, in Chrome ± 700
     const a54 = { ...devices['Galaxy S24'], deviceScaleFactor: 2.8125 }
     const d = name === 'Galaxy A54 app' ? { ...a54, viewport: { width: 384, height: 760 } } : name === 'Galaxy A54' ? { ...a54, viewport: { width: 384, height: 700 } } : name === 'iPhone 14 app' ? { ...devices['iPhone 14'], viewport: { width: 390, height: 844 } } : name === 'Galaxy S24 app' ? { ...devices['Galaxy S24'], viewport: { width: 360, height: 756 } } : name === 'Galaxy S24' ? { ...devices['Galaxy S24'], viewport: { width: 360, height: 700 } } : devices[name]
-    const ctx = await b.newContext({ ...d, deviceScaleFactor: 1, geolocation: { latitude: 51.445, longitude: 3.58 }, permissions: ['geolocation'], timezoneId: 'Europe/Amsterdam', locale: 'nl-NL' })
+    const ctx = await b.newContext({ ...d, deviceScaleFactor: 1, geolocation: { latitude: +(process.env.LAT || 51.445), longitude: +(process.env.LON || 3.58) }, permissions: ['geolocation'], timezoneId: 'Europe/Amsterdam', locale: 'nl-NL' })
     const p = await ctx.newPage()
     const errs = []
     p.on('pageerror', e => errs.push(e.message))

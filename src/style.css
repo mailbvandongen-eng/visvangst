@@ -184,6 +184,15 @@ body::before {
 .meta { margin-top: 2px; font-size: 12.5px; line-height: 1.45; color: var(--muted); text-wrap: balance; }
 .meta .nw { white-space: nowrap; }
 .notice { margin-top: 6px; font-size: 12px; color: var(--warn); }
+.meta .why { color: var(--accent); white-space: nowrap; }
+.wrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.wb { display: flex; flex-direction: column; gap: 1px; text-align: left; padding: 6px 9px; border-radius: 12px; border: 1px solid var(--line); background: var(--seg); min-width: 0; }
+.wb.on { background: var(--sel); border-color: var(--sel-line); }
+.wn { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wb small { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws { display: flex; align-items: center; gap: 2px; font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+.ws em { font-style: normal; font-size: 11px; color: var(--muted); margin-left: 4px; }
+.mfish { display: inline-block; width: 16px; height: 7px; margin-left: 3px; background: var(--fish); transform: scaleX(-1); -webkit-mask: var(--fishm) center / contain no-repeat; mask: var(--fishm) center / contain no-repeat; }
 
 .hero.loading { min-height: 180px; display: grid; place-content: center; gap: 12px; color: var(--muted); font-size: 14px; }
 .spinner { width: 28px; height: 28px; margin: 0 auto; border-radius: 50%; border: 2px solid var(--track); border-top-color: var(--accent); animation: spin 0.9s linear infinite; }
@@ -327,14 +336,18 @@ body::before {
 .mrow .fish, .dsummary .fish { width: 26px; height: 12px; }
 .mrow .fishrow { margin: 0; gap: 4px; }
 .mrow em { font-style: normal; font-size: 12.5px; color: var(--muted); }
-.factors { display: flex; flex-direction: column; gap: 10px; }
-.frow { display: grid; grid-template-columns: 1fr 1.1fr; grid-template-rows: auto auto; column-gap: 12px; row-gap: 3px; align-items: center; }
-.fname { font-size: 13.5px; display: flex; flex-direction: column; }
-.fname small { font-size: 11px; color: var(--muted); }
-.fbar { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; }
-.fbar i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
-.ftext { grid-column: 2; font-size: 12px; color: var(--muted); }
-.frow .fname { grid-row: span 2; }
+.factors { display: flex; flex-direction: column; }
+.frow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.fname { font-size: 13.5px; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.fname small { font-size: 12px; color: var(--muted); }
+.fcost { flex: none; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.frow.hurts .fcost { color: var(--warn); }
+.plain { font-size: 15px; line-height: 1.5; color: var(--text); }
+.seasonbar { display: flex; align-items: flex-end; gap: 4px; height: 44px; }
+.seasonbar i { flex: 1; border-radius: 3px 3px 0 0; background: var(--track); }
+.seasonbar i.on { background: var(--accent); }
+.seasonlabels { display: flex; gap: 4px; margin-top: -8px; }
+.seasonlabels span { flex: 1; text-align: center; font-size: 10.5px; color: var(--muted); }
 
 .moonview { display: flex; align-items: center; gap: 18px; min-height: 150px; }
 .moonimg.big { position: static; width: 150px; height: 150px; flex: none; }
@@ -421,6 +434,14 @@ body::before {
   .daycard { padding-top: 8px; }
   .daycard > .ichart { min-height: 58px; }
 }
+@media (max-height: 780px) {
+  .wrow { margin-top: 5px; gap: 5px; }
+  .wb { padding: 5px 8px; flex-direction: row; align-items: center; gap: 6px; }
+  .wn { flex: 1; min-width: 0; }
+  .wb small { display: none; }
+  .ws em { display: none; }
+  .meta { margin-top: 0; }
+}
 @media (max-height: 720px) {
   :root { --gap: 6px; }
   .screen { padding-top: calc(env(safe-area-inset-top) + 5px); }
@@ -442,11 +463,17 @@ body::before {
   .xticks { margin-top: 1px; }
 }
 @media (max-height: 680px) {
+  .fishrow { margin: 3px 0 2px; }
+  .daycard > .ichart { min-height: 40px; }
+  .tile { min-height: 78px; }
   .daycard .xticks { display: none; }
   .daycard > .ichart { margin-top: 4px; }
   .duo + .sparkwrap { display: none; }
 }
 @media (max-height: 640px) {
+  .tile { min-height: 70px !important; padding-top: 6px; padding-bottom: 6px; }
+  .hero { padding-top: 4px; }
+  .daycard { padding-top: 6px; }
   .hero { padding-bottom: 7px; }
   .fishrow { margin: 4px 0 2px; }
   .verdict { font-size: 19px; }

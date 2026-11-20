@@ -1,5 +1,5 @@
 import * as SunCalc from 'suncalc'
-import type { HourInput, Water } from './score'
+import type { HourInput, Water, WaterKind } from './score'
 
 const BASE = import.meta.env.BASE_URL
 
@@ -17,6 +17,7 @@ export interface Weather {
   time: number[]
   temp: number[]; pressure: number[]; rainProb: number[]; rain: number[]; sun: number[]; cloud: number[]
   wind: number[]; gust: number[]; windDir: number[]; code: number[]; isDay: number[]
+  sw: number[]; rh: number[]
 }
 export interface Marine { time: number[]; sst: (number | null)[]; waves: (number | null)[] }
 export interface River { time: number[]; q: (number | null)[]; median: (number | null)[] }
@@ -38,13 +39,14 @@ export const loadIndex = () => json<Index>(`${BASE}data/index.json?v=${Math.floo
 export const loadTide = (code: string) => json<Tide>(`${BASE}data/tide/${code}.json?v=${Math.floor(Date.now() / 600000)}`)
 
 export async function loadWeather(lat: number, lon: number): Promise<Weather> {
-  const vars = 'temperature_2m,pressure_msl,precipitation_probability,precipitation,sunshine_duration,cloud_cover,wind_speed_10m,wind_gusts_10m,wind_direction_10m,weather_code,is_day'
-  const d = await json<any>(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=${vars}&past_days=7&forecast_days=4&timezone=Europe%2FAmsterdam&timeformat=unixtime`)
+  const vars = 'temperature_2m,pressure_msl,precipitation_probability,precipitation,sunshine_duration,cloud_cover,wind_speed_10m,wind_gusts_10m,wind_direction_10m,weather_code,is_day,shortwave_radiation,relative_humidity_2m'
+  const d = await json<any>(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=${vars}&past_days=21&forecast_days=4&timezone=Europe%2FAmsterdam&timeformat=unixtime`)
   const h = d.hourly
   return {
     time: h.time.map((t: number) => t * 1000), temp: h.temperature_2m, pressure: h.pressure_msl,
     rainProb: h.precipitation_probability, rain: h.precipitation, sun: h.sunshine_duration, cloud: h.cloud_cover,
     wind: h.wind_speed_10m, gust: h.wind_gusts_10m, windDir: h.wind_direction_10m, code: h.weather_code, isDay: h.is_day,
+    sw: h.shortwave_radiation, rh: h.relative_humidity_2m,
   }
 }
 
@@ -118,7 +120,8 @@ export interface World {
   lat: number; lon: number; water: Water
   weather: Weather; marine: Marine | null; river: River | null
   tide: Tide | null
-  waterNow: { t: number; src: string; dist: number | null } | null
+  /** Watertemperatuur per uur voor het gekozen water (model of meting), soort water en of hij onzeker is */
+  wt: { series: Map<number, number> | null; kind: WaterKind; uncertain: boolean }
 }
 
 function at<T>(times: number[], arr: (T | null)[], t: number): T | null {
@@ -167,16 +170,6 @@ export function buildHours(w: World, from: number, to: number): HourInput[] {
     meanRange = rs.reduce((s, x) => s + x, 0) / Math.max(1, rs.length)
   }
 
-  // Watertemperatuur door de tijd: meting nu, daarna de trend van zeemodel of lucht
-  const airMean = (t: number, hours: number) => {
-    let s = 0, n = 0
-    for (let i = 0; i < W.time.length; i++) if (W.time[i] <= t && W.time[i] > t - hours * 3600000) { s += W.temp[i]; n++ }
-    return n ? s / n : null
-  }
-  const now = Math.floor(Date.now() / 3600000) * 3600000
-  const airNow = airMean(now, 72)
-  const sstNow = w.marine ? at(w.marine.time, w.marine.sst, now) : null
-
   for (let t = from; t < to; t += 3600000) {
     const i = W.time.indexOf(t)
     if (i < 0) continue
@@ -188,14 +181,9 @@ export function buildHours(w: World, from: number, to: number): HourInput[] {
       Math.exp(-(((t - times.sunset!.getTime()) / 3600000) ** 2) / 1.2),
     )
 
-    let waterTemp: number | null = null
-    if (w.waterNow) {
-      let delta = 0
-      const sst = w.marine ? at(w.marine.time, w.marine.sst, t) : null
-      if (w.water === 'zout' && sst != null && sstNow != null) delta = sst - sstNow
-      else if (airNow != null) { const am = airMean(t, 72); if (am != null) delta = (am - airNow) * (w.water === 'zout' ? 0.25 : 0.45) }
-      waterTemp = w.waterNow.t + Math.max(-4, Math.min(4, delta))
-    }
+    const waterTemp = w.wt.series?.get(t) ?? null
+    const prev = w.wt.series?.get(t - 86400000)
+    const waterTrend = waterTemp != null && prev != null ? waterTemp - prev : null
 
     const f = w.tide ? tideFlow(w.tide, t) : null
     const dayRange = w.tide ? ranges[ymd(t)] : undefined
@@ -215,7 +203,7 @@ export function buildHours(w: World, from: number, to: number): HourInput[] {
     }
 
     out.push({
-      t, month: Number(ymd(t).slice(5, 7)) - 1, waterTemp,
+      t, month: Number(ymd(t).slice(5, 7)) - 1, waterTemp, waterTrend, waterUncertain: w.wt.uncertain, waterKind: w.wt.kind,
       sunAlt: pos.altitude, twilight: tw, // suncalc 2.x geeft graden
       sunFrac: Math.min(1, (W.sun[i] ?? 0) / 3600), cloud: W.cloud[i] ?? 50,
       pressure: W.pressure[i], dp3: p3 >= 0 ? W.pressure[i] - W.pressure[p3] : 0,

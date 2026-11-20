@@ -23,6 +23,12 @@ Eén scherm dat zich aanpast aan elke telefoon (iPhone, Samsung, Pixel, Fold) en
   Sluiten met het kruisje, naast het venster tikken of naar beneden vegen.
 - **Menu**: uitleg, bronnen, donker of licht (standaard donker, onthouden).
 
+## Wateren herkennen
+
+De plek bepaalt het water; je kiest niets. Via TOP10NL (Kadaster, PDOK) zoekt de app binnen 250 m (GPS) of 500 m (gezochte plek) het dichtstbijzijnde water per groep: **ondiep** (sloot < 3 m), **middel** (watergang 3–12 m, plas) en **diep** (vaart, kanaal, meer, rivier, haven, zee). Liggen er meerdere, dan krijgt elk water een eigen score en kiest de app automatisch het water met de beste kans (tikken kiest een ander).
+
+**Watertemperatuur per water** (`src/watertemp.ts`): voor polderwater een warmtebalans per uur (zon, langgolvige straling, verdamping en voelbare warmte met de windfunctie van Sweers, bodem en kwel), met de diepte uit de breedteklasse. Getoetst aan 28 HHNK-meetpunten (`tools/validatie`): 0,6 °C fout in watergangen tegen 1,1 °C voor het dichtstbijzijnde RWS-meetpunt; in smalle sloten ± 1,4 °C (lokale kwel), daarom telt de temperatuur daar minder zwaar. Groot water: meting van Rijkswaterstaat als die in hetzelfde water ligt.
+
 ## Hoe de score werkt
 
 Per uur krijgt elke factor een waarde van 0 tot 1. De weging volgt wat onderzoek laat zien:

@@ -1,6 +1,6 @@
 // Verdeling van de scores over drie dagen, per plek en per soort: node tools/dist.cjs
 const { chromium } = require('/root/tools/pw/node_modules/playwright-core')
-const PLACES = [['Scheveningen', 52.104, 4.274], ['Vlissingen', 51.445, 3.58], ['Lemmer (IJsselmeer)', 52.84, 5.71], ['Utrecht (Vecht)', 52.11, 5.08], ['Nijmegen (Waal)', 51.85, 5.86]]
+const PLACES = [['Voorburg (polder + vaart)', 52.0805, 4.3913], ['Jisp (polder)', 52.5078, 4.848], ['Vlissingen', 51.445, 3.58], ['Lemmer (IJsselmeer)', 52.84, 5.71], ['Nijmegen (Waal)', 51.851, 5.865]]
 ;(async () => {
   const b = await chromium.launch({ executablePath: '/usr/bin/chromium', args: ['--no-sandbox'] })
   for (const [name, lat, lon] of PLACES) {
@@ -14,15 +14,21 @@ const PLACES = [['Scheveningen', 52.104, 4.274], ['Vlissingen', 51.445, 3.58], [
       await p.click(`[data-act=water][data-v=${water}]`); await p.waitForTimeout(300)
       const res = await p.evaluate(water => {
         const { D, CHOICES, scoreHour } = window.__vv
-        return CHOICES.filter(c => c.water === water).map(c => {
+        const out = []
+        D.waterHours.forEach((wh, wi) => {
+        const b = D.waters[wi]
+        out.push(`-- ${b ? b.name + ' (' + b.kind + ')' : 'onbekend'}: water nu ${wh.hours.find(h => h.t === Math.floor(Date.now() / 3600000) * 3600000)?.waterTemp?.toFixed(1)}° (${D.waterInfo[wi].src})`)
+        out.push(...CHOICES.filter(c => c.water === water).map(c => {
           const days = {}
-          for (const h of D.hours) {
+          for (const h of wh.hours) {
             const s = scoreHour(c, h)
             const d = new Intl.DateTimeFormat('nl', { timeZone: 'Europe/Amsterdam', weekday: 'short' }).format(h.t)
             ;(days[d] ??= []).push(s.fish)
           }
-          return c.name.padEnd(11) + Object.entries(days).map(([d, a]) => `${d} ${Math.min(...a)}–${Math.max(...a)} gem ${(a.reduce((x, y) => x + y, 0) / a.length).toFixed(1)}`).join(' | ')
-        }).concat([`water ${D.hours[18]?.waterTemp?.toFixed(1)}° wind ${D.hours[18]?.windKmh} golf ${D.hours[18]?.waves} rivier ${D.hours[18]?.riverRatio?.toFixed(2)}`])
+          return '  ' + c.name.padEnd(11) + Object.entries(days).map(([d, a]) => `${d} ${Math.min(...a)}–${Math.max(...a)} gem ${(a.reduce((x, y) => x + y, 0) / a.length).toFixed(1)}`).join(' | ')
+        }))
+        })
+        return out
       }, water)
       console.log(' ' + water + ':\n   ' + res.join('\n   '))
     }
