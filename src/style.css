@@ -4,7 +4,7 @@
   --text: #eef5f9;
   --text-2: #a9bccb;
   --muted: #7890a3;
-  --card: rgba(255, 255, 255, 0.055);
+  --card: rgba(255, 255, 255, 0.06);
   --card-hi: rgba(255, 255, 255, 0.085);
   --line: rgba(255, 255, 255, 0.09);
   --accent: #5fd4f4;
@@ -21,6 +21,7 @@
 
 * { box-sizing: border-box; margin: 0; }
 html, body { background: var(--bg); color: var(--text); min-height: 100%; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body { overscroll-behavior: none; }
 button, select, input { font: inherit; color: inherit; }
 button { background: none; border: 0; cursor: pointer; padding: 0; }
@@ -35,7 +36,7 @@ body::before {
     radial-gradient(60% 50% at 0% 70%, rgba(10, 60, 80, 0.5), transparent 70%),
     linear-gradient(180deg, #082033 0%, #061420 55%, #040d16 100%);
   animation: drift 26s ease-in-out infinite alternate;
-  transition: --glow 1s;
+  will-change: transform;
 }
 @keyframes drift { to { transform: translate3d(0, -3%, 0) scale(1.04); } }
 
@@ -52,14 +53,13 @@ body::before {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--r);
-  backdrop-filter: blur(24px) saturate(140%);
-  -webkit-backdrop-filter: blur(24px) saturate(140%);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 12px 40px -18px rgba(0, 0, 0, 0.6);
 }
 
 /* ---------- kop ---------- */
-.top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; }
-.place { display: flex; align-items: center; gap: 6px; font-weight: 650; font-size: 19px; letter-spacing: -0.01em; min-width: 0; }
+.top { display: flex; align-items: center; gap: 8px; min-height: 36px; }
+.place { flex: 1; display: flex; align-items: center; gap: 6px; font-weight: 650; font-size: 19px; letter-spacing: -0.01em; min-width: 0; }
+.top .water { flex: 0 0 124px; }
 .place img { width: 22px; height: 22px; }
 .pname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chev { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; opacity: 0.6; flex: none; }
@@ -72,14 +72,11 @@ body::before {
 .round:active:not(:disabled), .btn:active, .sp:active { transform: scale(0.96); }
 
 /* ---------- zoet / zout ---------- */
-.controls { display: flex; align-items: center; gap: 10px; }
-.controls .water { flex: 0 0 148px; }
-.controls .daynav { flex: 1; }
 .water {
   position: relative; display: grid; grid-template-columns: 1fr 1fr; padding: 3px; border-radius: 14px;
   background: rgba(0, 0, 0, 0.25); border: 1px solid var(--line);
 }
-.water button { position: relative; z-index: 1; height: 30px; font-weight: 600; font-size: 14px; color: var(--muted); transition: color .25s; }
+.water button { position: relative; z-index: 1; height: 28px; font-weight: 600; font-size: 13.5px; color: var(--muted); transition: color .25s; }
 .water button[aria-selected="true"] { color: var(--text); }
 .water .pill {
   position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 11px;
@@ -106,10 +103,11 @@ body::before {
 .sp.grp span::after { content: ' · alle'; color: var(--muted); font-weight: 450; }
 
 /* ---------- dag ---------- */
-.daynav { display: flex; align-items: center; justify-content: space-between; }
-.dayname { text-align: center; line-height: 1.2; }
-.dayname b { font-size: 15px; font-weight: 650; }
-.dayname small { display: block; font-size: 11.5px; color: var(--muted); }
+.daynav { position: relative; display: flex; align-items: center; justify-content: space-between; margin: -3px -5px 0; }
+.daynav .round { width: 30px; height: 30px; }
+.dayname { text-align: center; line-height: 1.25; }
+.dayname b { font-size: 15px; font-weight: 680; }
+.dayname small { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .dayname em { font-style: normal; color: var(--warn); font-weight: 600; }
 
 /* ---------- held ---------- */
@@ -118,9 +116,11 @@ body::before {
   content: ''; position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(80% 70% at 50% 0%, var(--glow, transparent), transparent 70%); opacity: .45;
 }
-.when { position: relative; font-size: 12.5px; color: var(--muted); font-weight: 550; letter-spacing: .02em; }
+.meta { position: relative; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px 12px; margin-top: 4px; font-size: 13px; color: var(--text-2); }
+.meta > span { white-space: nowrap; }
+.when { color: var(--muted); font-weight: 550; }
 .when b { color: var(--text-2); font-weight: 650; }
-.fishrow { position: relative; display: flex; justify-content: center; gap: 4px; margin: 5px 0 0; }
+.fishrow { position: relative; display: flex; justify-content: center; gap: 4px; margin: 2px 0 0; }
 .fish { position: relative; width: 50px; height: 50px; }
 .fish img { position: absolute; inset: 0; width: 100%; height: 100%; }
 .fish .ghost { filter: grayscale(1) brightness(.55); opacity: .22; }
@@ -131,9 +131,10 @@ body::before {
 @keyframes swim { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-3px) rotate(-3deg); } }
 .verdict { position: relative; font-size: 31px; font-weight: 750; letter-spacing: -0.03em; line-height: 1.1; margin-top: 0; }
 .tone-10 .verdict { background: linear-gradient(90deg, #8ff0c4, #5fd4f4); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.bestline { position: relative; display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 6px; font-size: 13.5px; color: var(--text-2); }
-.bestline img { width: 18px; height: 18px; }
-.bestline img.mini { width: 16px; height: 16px; margin-left: -3px; }
+.bestline { display: inline-flex; align-items: center; gap: 5px; }
+.bestline img { width: 17px; height: 17px; }
+.bestline .score { display: inline-flex; align-items: center; gap: 2px; margin-left: 2px; padding: 1px 6px 1px 7px; border-radius: 9px; background: rgba(95, 212, 244, .13); color: var(--text); font-weight: 650; }
+.bestline img.mini { width: 15px; height: 15px; }
 .bestline b { color: var(--text); font-weight: 650; font-variant-numeric: tabular-nums; }
 .why { position: relative; display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin-top: 8px; }
 .chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px 4px 8px; border-radius: 12px; font-size: 12.5px; font-weight: 520; background: rgba(255,255,255,.06); color: var(--text-2); }
@@ -153,10 +154,9 @@ body::before {
 .tile {
   position: relative; padding: 10px 12px 9px; min-height: 108px; display: flex; flex-direction: column;
   background: var(--card); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden;
-  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
 }
-.th { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.th { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; min-width: 0; }
 .th img { width: 17px; height: 17px; }
 .th .state { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--accent); }
 .big { font-size: 25px; font-weight: 680; letter-spacing: -0.03em; line-height: 1.1; margin-top: 6px; }
@@ -172,7 +172,8 @@ body::before {
 .moon .moonimg { position: absolute; right: 8px; top: 8px; width: 58px; height: 58px; }
 .moon .moonimg.nasa { mix-blend-mode: screen; filter: contrast(1.08) brightness(1.08); -webkit-mask: radial-gradient(circle, #000 60%, transparent 71%); mask: radial-gradient(circle, #000 64%, transparent 70%); }
 .moon .moonimg.nasa { width: 72px; height: 72px; right: 1px; top: 1px; }
-.moon .big, .moon .sub { position: relative; text-shadow: 0 1px 8px rgba(0,0,0,.6); }
+.moon .big, .moon .sub, .moon .th { position: relative; text-shadow: 0 1px 8px rgba(0,0,0,.7); }
+.moon .sub { max-width: calc(100% - 48px); }
 
 .sparkwrap { position: relative; margin-top: auto; height: 26px; }
 .tide .sparkwrap { height: 34px; margin: 12px 0 12px; }
@@ -260,6 +261,83 @@ footer { text-align: center; font-size: 10.5px; color: var(--muted); opacity: .7
 .welcome h1 { font-size: 36px; font-weight: 780; letter-spacing: -0.03em; }
 .welcome p { color: var(--text-2); line-height: 1.5; margin-bottom: 8px; }
 
+/* ---------- schermmaten ----------
+   Hoogte: iPhone als app ~800, Safari en Android-Chrome met balken 640–780. Breedte: Samsung 360, oude toestellen 320. */
 @media (min-height: 880px) { .fish { width: 58px; height: 58px; } .tile { min-height: 122px; } :root { --gap: 10px; } }
-@media (max-height: 760px) { .fish { width: 44px; height: 44px; } .verdict { font-size: 27px; } .tile { min-height: 100px; } :root { --gap: 6px; } .why { margin-top: 6px; } }
+@media (max-height: 800px) {
+  :root { --gap: 7px; }
+  .screen { padding-top: calc(env(safe-area-inset-top) + 5px); }
+  footer { display: none; }
+  .fish { width: 42px; height: 42px; }
+  .verdict { font-size: 27px; }
+  .hero { padding: 9px 13px 10px; }
+  .why { margin-top: 6px; }
+  .tile { min-height: 94px; padding: 8px 11px 8px; }
+  .tide .sparkwrap { height: 30px; margin: 10px 0 11px; }
+  .big { font-size: 23px; margin-top: 3px; }
+  .fishn { visibility: hidden; height: 0; overflow: hidden; }
+  .labels, .col { grid-template-rows: 15px 22px 32px 0 15px 15px 15px; }
+  .col .bar { height: 32px; }
+  .col .wx { width: 20px; height: 20px; }
+}
+@media (max-height: 720px) {
+  :root { --gap: 6px; }
+  .screen { padding-top: calc(env(safe-area-inset-top) + 4px); }
+  .top { min-height: 32px; }
+  .round { width: 30px; height: 30px; }
+  .sp { height: 30px; font-size: 13px; }
+  .sp i { width: 28px; height: 13px; }
+  .hero { padding: 8px 12px 9px; }
+  .fish { width: 38px; height: 38px; }
+  .verdict { font-size: 25px; }
+  .meta { font-size: 12.5px; margin-top: 2px; }
+  .why { margin-top: 5px; gap: 4px; }
+  .chip { padding: 2px 8px 2px 7px; font-size: 12px; }
+  .tile { min-height: 90px; }
+  .sparkwrap { height: 20px; }
+  .tide .sparkwrap { height: 26px; margin: 10px 0 10px; }
+  .moon .moonimg.nasa { width: 60px; height: 60px; }
+  .labels, .col { grid-template-rows: 14px 20px 26px 0 14px 14px 14px; row-gap: 1px; }
+  .col .bar { height: 26px; }
+  .col .wx { width: 18px; height: 18px; }
+  .hours { padding: 5px 0 4px 8px; }
+}
+@media (max-height: 660px) {
+  .why { display: none; }
+  .tile { min-height: 82px; }
+  .sub { font-size: 12px; }
+}
+@media (max-width: 380px) {
+  .screen { padding-left: 10px; padding-right: 10px; }
+  .species { margin: 0 -10px; padding: 0 10px; }
+  .place { font-size: 17px; }
+  .top .water { flex-basis: 112px; }
+  .tile { padding-left: 10px; padding-right: 10px; }
+  .big { font-size: 22px; }
+  .big small { font-size: 12.5px; }
+  .th { font-size: 11px; letter-spacing: .04em; gap: 5px; }
+  .th img { width: 15px; height: 15px; }
+  .tide .th .state { font-size: 11px; }
+  .moon .moonimg.nasa { width: 58px; height: 58px; }
+  .col { width: 37px; }
+  .labels { font-size: 10px; padding-right: 4px; }
+}
+@media (max-width: 340px) {
+  .place img, .labels img { display: none; }
+  .top .water { flex-basis: 100px; }
+  .water button { font-size: 12.5px; }
+  .th img { display: none; }
+  .big { font-size: 20px; }
+  .station span { font-size: 13px; }
+  .foot { font-size: 10.5px; }
+}
+/* Groot scherm (uitgevouwen Fold, tablet): breder, tegels naast elkaar */
+@media (min-width: 720px) {
+  .screen { max-width: 920px; padding-left: 24px; padding-right: 24px; }
+  .species { margin: 0; padding: 0; flex-wrap: wrap; overflow: visible; }
+  .tiles { grid-template-columns: repeat(4, 1fr); }
+  .fish { width: 64px; height: 64px; }
+  .verdict { font-size: 38px; }
+  .col { flex: 1 0 40px; }
+}
 @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }

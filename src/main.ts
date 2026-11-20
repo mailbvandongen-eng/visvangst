@@ -203,7 +203,10 @@ function whyChips(s: HourScore, h: HourInput) {
   const pos = scored.filter(f => f.f >= 0.8).sort((a, b) => b.w * b.f - a.w * a.f).slice(0, 2)
   const neg = scored.filter(f => f.f <= 0.5).sort((a, b) => a.f * a.w - b.f * b.w - (b.w - a.w)).slice(0, 2)
   const chip = (f: { key: string; f: number }, ok: boolean) => `<span class="chip ${ok ? 'pos' : 'neg'}"><b>${ok ? '+' : '−'}</b>${esc(describe(f, h, s))}</span>`
-  return [...pos.map(f => chip(f, true)), ...neg.map(f => chip(f, false))].join('')
+  const list = [...pos.map(f => chip(f, true)), ...neg.map(f => chip(f, false))]
+  // Hoogstens drie, zodat het op smalle schermen op één of twee regels past
+  if (list.length > 3) list.splice(pos.length > 1 ? 1 : 3, 1)
+  return list.join('')
 }
 
 function sparkline(vals: (number | null)[], opts: { w: number; h: number; sel?: number; pad?: number; area?: boolean; marks?: { i: number; label: string; top: boolean }[] }) {
@@ -271,21 +274,13 @@ function render() {
         <span class="pname">${esc(S.loc.name || 'Locatie…')}</span>
         <svg class="chev" viewBox="0 0 12 12"><path d="M3 4.5l3 3 3-3"/></svg>
       </button>
+      <div class="water" role="tablist">
+        <span class="pill ${S.water === 'zout' ? 'right' : ''}"></span>
+        <button role="tab" aria-selected="${S.water === 'zoet'}" data-act="water" data-v="zoet">Zoet</button>
+        <button role="tab" aria-selected="${S.water === 'zout'}" data-act="water" data-v="zout">Zout</button>
+      </div>
       <button class="round" data-act="sheet-info" aria-label="Uitleg">i</button>
     </header>
-
-    <div class="controls">
-  <div class="water" role="tablist">
-      <span class="pill ${S.water === 'zout' ? 'right' : ''}"></span>
-      <button role="tab" aria-selected="${S.water === 'zoet'}" data-act="water" data-v="zoet">Zoet</button>
-      <button role="tab" aria-selected="${S.water === 'zout'}" data-act="water" data-v="zout">Zout</button>
-    </div>
-      <div class="daynav">
-      <button class="round" data-act="day" data-v="-1" ${S.day === 0 ? 'disabled' : ''} aria-label="Vorige dag"><svg viewBox="0 0 12 12"><path d="M7.5 2.5L4 6l3.5 3.5"/></svg></button>
-      <div class="dayname"><b>${['Vandaag', 'Morgen', 'Overmorgen'][S.day]}</b><small>${dayName(dayFrom + 12 * 3600000)}${S.day > 0 ? ' · <em>verwachting</em>' : ''}</small></div>
-      <button class="round" data-act="day" data-v="1" ${S.day === 2 ? 'disabled' : ''} aria-label="Volgende dag"><svg viewBox="0 0 12 12"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg></button>
-    </div>
-    </div>
 
     <div class="species">
       ${CHOICES.filter(x => x.water === S.water).map(x => `
@@ -296,10 +291,17 @@ function render() {
 
     ${!ready ? `<section class="card hero loading">${S.error ? `<p class="err">${S.error}</p><button class="btn" data-act="retry">Opnieuw</button>` : '<div class="spinner"></div><p>Water, weer en getij ophalen…</p>'}</section>` : `
     <section class="card hero">
-      <div class="when">${heroWhen}${c.members.length > 1 && ss ? ` · vooral <b>${esc(ss.best.toLowerCase())}</b>` : ''}</div>
+      <div class="daynav">
+        <button class="round" data-act="day" data-v="-1" ${S.day === 0 ? 'disabled' : ''} aria-label="Vorige dag"><svg viewBox="0 0 12 12"><path d="M7.5 2.5L4 6l3.5 3.5"/></svg></button>
+        <div class="dayname"><b>${['Vandaag', 'Morgen', 'Overmorgen'][S.day]}</b> <small>${dayName(dayFrom + 12 * 3600000)}${S.day > 0 ? ' · <em>verwachting</em>' : ''}</small></div>
+        <button class="round" data-act="day" data-v="1" ${S.day === 2 ? 'disabled' : ''} aria-label="Volgende dag"><svg viewBox="0 0 12 12"><path d="M4.5 2.5L8 6l-3.5 3.5"/></svg></button>
+      </div>
       ${fishRow(ss.fish)}
       <h1 class="verdict">${label}</h1>
-      <div class="bestline">${best ? `<img src="${icon('fishing_pole')}" alt=""> Beste moment ${S.day === 0 ? 'vandaag' : ''} <b>${win}</b> · ${fmt(best.fish, best.fish % 1 ? 1 : 0)} <img class="mini" src="${icon('fish')}" alt="visjes">` : ''}</div>
+      <div class="meta">
+        <span class="when">${heroWhen}${c.members.length > 1 && ss ? ` · vooral <b>${esc(ss.best.toLowerCase())}</b>` : ''}</span>
+        ${best ? `<span class="bestline"><img src="${icon('fishing_pole')}" alt="">Beste moment <b>${win}</b><span class="score">${fmt(best.fish, best.fish % 1 ? 1 : 0)}<img class="mini" src="${icon('fish')}" alt="visjes"></span></span>` : ''}
+      </div>
       <div class="why">${whyChips(ss, sh)}</div>
       ${closed ? `<div class="notice"><img src="${icon('high_voltage')}" alt=""> ${closed}</div>` : ''}
     </section>
