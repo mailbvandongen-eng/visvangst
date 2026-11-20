@@ -16,7 +16,8 @@ const { chromium, devices } = require('/root/tools/pw/node_modules/playwright-co
   await p.mouse.up(); await p.waitForTimeout(200)
   const after = await p.textContent('.meta')
   ok(`dag-grafiek kiest uur ("${before.trim()}" → "${after.trim()}")`, after !== before && /Om \d\d:00/.test(after))
-  ok('uurrij volgt', (await p.locator('.hc.sel .ht').textContent()) === after.match(/Om (\d\d)/)[1].replace(/^0/, ''))
+  const h = Number(after.match(/Om (\d\d)/)[1]), blk = Number(await p.locator('.hb.sel .ht').textContent())
+  ok(`blok volgt (${h}:00 valt in blok ${blk})`, h >= blk && h < blk + 3)
   // 2. getij-venster openen en schuiven
   await p.click('.tile[data-v=tide]'); await p.waitForSelector('.detail'); await p.waitForTimeout(500)
   const tb = await p.locator('.detail .plot').boundingBox()

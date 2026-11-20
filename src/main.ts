@@ -315,9 +315,6 @@ function render() {
   ${S.sheet === 'menu' ? menuSheet() : ''}`
 
   initCharts($app)
-  const row = $app.querySelector<HTMLElement>('.hrow')
-  const selEl = row?.querySelector<HTMLElement>('.hc.sel')
-  if (row && selEl) row.scrollLeft = Math.max(0, selEl.offsetLeft - row.clientWidth / 2 + selEl.clientWidth / 2)
 }
 
 function springNeap(t: number): string | null {
@@ -406,12 +403,11 @@ function tideTile(from: number, to: number, selT: number) {
   const ext = td.ext.filter(e => e.t >= from && e.t < to)
   const marks = ext.map(e => ({ i: Math.round((e.t - from) / 1200000), label: hhmm(e.t), top: e.hw }))
   const next = td.ext.filter(e => e.t > selT).slice(0, 2)
-  const cur = tideAt(td, selT)
   return `<button class="tile tide" data-act="open" data-v="tide" ${vt('tide')}>
     <div class="th">Getij ${more}<span class="state">${tideState(selT)}</span></div>
     <div class="station"><span>${esc(D.tideStation.n)}</span><small>${fmt(D.tideStation.d, D.tideStation.d < 10 ? 1 : 0)} km</small></div>
     ${sparkline(vals, { w: 100, h: 34, sel: Math.round((selT - from) / 1200000), area: true, marks })}
-    <div class="foot">${next.map(e => `<span><b>${e.hw ? 'HW' : 'LW'}</b> ${hhmm(e.t)}</span>`).join('')}${cur != null ? `<span class="tcm">${cur > 0 ? '+' : ''}${fmt(cur)} cm</span>` : ''}</div>
+    <div class="foot">${next.map(e => `<span><b>${e.hw ? 'HW' : 'LW'}</b> ${hhmm(e.t)}</span>`).join('')}</div>
   </button>`
 }
 
@@ -440,26 +436,30 @@ function dayCard(v: DayView) {
       { i: idx(rise), html: `<img src="${icon('sunrise')}" alt="">${hhmm(rise)}` },
       { i: idx(set), html: `<img src="${icon('sunset')}" alt="">${hhmm(set)}` },
     ],
-    xTicks: [0, 6, 12, 18].map(hh => ({ i: hh, label: `${String(hh).padStart(2, '0')}:00` })),
     bubble: i => `${hhmm(v.hours[i].t)} · <b>${LABELS[String(v.scores[i].fish)]}</b>`,
   })
-  const cells = v.hours.map((h, i) => {
-    const k = W.time.indexOf(h.t)
-    const rain = h.rainProb >= 10 ? `${h.rainProb}%` : ''
-    const past = S.day === 0 && h.t < v.nowH
-    return `<button class="hc ${i === v.si ? 'sel' : ''} ${past ? 'past' : ''}" data-act="hour" data-v="${h.t}">
-      <span class="ht">${h.t === v.nowH ? 'Nu' : hourNL(h.t)}</span>
-      <img src="${icon(wxIcon(W.code[k], !!W.isDay[k], h.sunFrac))}" alt="">
-      <span class="hrain">${rain}</span>
+  // Blokken van 3 uur: passen in de breedte, recht onder de curve, zonder icoontjes
+  const blocks: string[] = []
+  for (let a = 0; a < v.hours.length; a += 3) {
+    const part = v.hours.slice(a, a + 3)
+    const mid = part[Math.min(1, part.length - 1)]
+    const k = W.time.indexOf(mid.t)
+    const rain = Math.max(...part.map(h => h.rainProb))
+    const sel = v.si >= a && v.si < a + 3
+    const hasNow = S.day === 0 && part.some(h => h.t === v.nowH)
+    const past = S.day === 0 && part[part.length - 1].t < v.nowH
+    blocks.push(`<button class="hb ${sel ? 'sel' : ''} ${past ? 'past' : ''}" data-act="hour" data-v="${hasNow ? v.nowH : part[0].t}" aria-label="${hhmm(part[0].t)} tot ${hhmm(part[part.length - 1].t + 3600000)}">
+      <span class="ht">${hasNow ? 'Nu' : String(hourNL(part[0].t)).padStart(2, '0')}</span>
       <span class="htemp">${fmt(W.temp[k])}°</span>
-      <span class="hwind"><svg viewBox="0 0 10 10" style="transform:rotate(${h.windDir + 180}deg)"><path d="M5 1l3 7-3-1.6L2 8z"/></svg>${bft(h.windKmh)}</span>
-    </button>`
-  }).join('')
+      <span class="hwind"><svg viewBox="0 0 10 10" style="transform:rotate(${mid.windDir + 180}deg)"><path d="M5 1l3 7-3-1.6L2 8z"/></svg>${bft(mid.windKmh)}</span>
+      <span class="hrain">${rain >= 10 ? rain + '%' : ''}</span>
+    </button>`)
+  }
   return `<section class="card daycard" ${vt('hours')}>
     <div class="dhead"><span>Vangstkans per uur</span>${v.win ? `<span class="dbest">beste ${v.win}</span>` : ''}
       <button class="dmore" data-act="open" data-v="hours">Details ${more}</button></div>
     ${curve}
-    <div class="hrow">${cells}</div>
+    <div class="hrow" style="--n:${blocks.length}">${blocks.join('')}</div>
   </section>`
 }
 
