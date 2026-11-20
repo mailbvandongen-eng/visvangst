@@ -6,13 +6,22 @@ Hoe groot is de kans op actieve vis, hier en nu? Eén scherm met een score van �
 
 ## Wat er op het scherm staat
 
-- **Visjes**: de kans per uur, met het beste moment van de dag. De uitleg van de score staat in het menu.
-- **Zoet of zout** (standaard zoet), en een soort of groep: roofvis (snoek, snoekbaars, baars), witvis, karper, zeevis (zeebaars, kabeljauw en wijting, platvis, makreel).
+Eén scherm dat zich aanpast aan elke telefoon (iPhone, Samsung, Pixel, Fold) en de hoogte altijd vult.
+
+- **Visjes**: ½ tot 5, van Kansloos tot Top!, voor het gekozen uur.
+- **Zoet of zout** (standaard zoet), met een soort of groep: roofvis (snoek, snoekbaars, baars), witvis, karper, zeevis (zeebaars, kabeljauw en wijting, platvis, makreel).
 - **Vandaag, morgen, overmorgen**: morgen en overmorgen zijn een verwachting.
-- **Maan**: foto van NASA voor die dag, percentage verlicht, springtij of doodtij.
-- **Luchtdruk** met trend, **temperatuur** van lucht en water, **getij** van het dichtstbijzijnde station (zelf te kiezen).
-- **Per uur**: visscore, regenkans, zon, wind (Beaufort), zonsopkomst en -ondergang.
-- **Donker of licht**: standaard donker, de keuze wordt onthouden (menu).
+- **Tegels**: maan (NASA-foto), luchtdruk, temperatuur van lucht en water, getij van het dichtstbijzijnde station.
+- **Vangstkans per uur**: een curve over de dag met de beste periode, zonsopkomst en -ondergang. Schuif met je vinger en het hele scherm volgt dat uur. Daaronder per uur weer, temperatuur, regenkans (alleen als die er is) en wind.
+- **Tik op een tegel** en hij groeit uit tot een groot venster met een grafiek waarover je kunt schuiven:
+  - Getij: drie dagen, alle hoog- en laagwatertijden, station kiezen.
+  - Luchtdruk: zes dagen terug tot drie dagen vooruit.
+  - Temperatuur: lucht en water, met de bron van de meting.
+  - Maan: schuif door 30 dagen met de echte NASA-foto per dag, komende fasen.
+  - Visjes: waarom de score is wat hij is, per factor en per soort.
+  - Per uur: tabel met wind en windstoten, bewolking, golven, watertemperatuur.
+  Sluiten met het kruisje, naast het venster tikken of naar beneden vegen.
+- **Menu**: uitleg, bronnen, donker of licht (standaard donker, onthouden).
 
 ## Hoe de score werkt
 
@@ -39,7 +48,7 @@ De factoren worden gecombineerd met een gewogen meetkundig gemiddelde, zodat é�
 - Maanfoto's: NASA Scientific Visualization Studio (Dial-A-Moon)
 - Plaatsnaam: © OpenStreetMap-bijdragers (Nominatim)
 - Iconen: [Microsoft Fluent Emoji](https://github.com/microsoft/fluentui-emoji) (MIT)
-- Vissilhouetten en het score-visje (makreel): [PhyloPic](https://www.phylopic.org) (publiek domein / CC0)
+- Vissilhouetten en het score-visje (voorn): [PhyloPic](https://www.phylopic.org) (publiek domein / CC0)
 
 Rijkswaterstaat stuurt geen CORS-header mee. Daarom haalt een GitHub Action elke drie uur getij, watertemperatuur en maanfoto's op (`tools/fetch-data.mjs`) en publiceert ze als statische bestanden samen met de site.
 
@@ -50,3 +59,5 @@ npm install
 npm run data     # getij, watertemperatuur en maan ophalen naar public/data
 npm run dev
 ```
+
+Testen (Chromium via playwright-core): `tools/devices.cjs` (15 toestellen: past alles, geen lege ruimte), `tools/touch.cjs` (schuiven, vensters, vegen), `tools/flow.cjs` (zoeken, station, thema), `tools/dist.cjs` (scoreverdeling).

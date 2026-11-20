@@ -103,7 +103,7 @@ body::before {
 .screen {
   max-width: 480px; margin: 0 auto;
   min-height: 100dvh;
-  padding: calc(env(safe-area-inset-top) + 8px) 14px calc(env(safe-area-inset-bottom) + 10px);
+  padding: calc(env(safe-area-inset-top) + 8px) 14px calc(env(safe-area-inset-bottom) + 12px);
   display: flex; flex-direction: column; gap: var(--gap);
 }
 
@@ -171,7 +171,7 @@ body::before {
 .dayname em { font-style: normal; color: var(--warn); }
 
 .fishrow { display: flex; justify-content: center; gap: 10px; margin: 8px 0 6px; }
-.fish { position: relative; width: 46px; height: 15px; transform: scaleX(-1); }
+.fish { position: relative; width: 44px; height: 19px; transform: scaleX(-1); }
 .fish::before, .fish::after {
   content: ''; position: absolute; inset: 0;
   -webkit-mask: var(--fishm) center / contain no-repeat; mask: var(--fishm) center / contain no-repeat;
@@ -191,11 +191,14 @@ body::before {
 .err { color: #e0786a; }
 
 /* ---------- tegels ---------- */
-.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
-.tile { position: relative; padding: 10px 12px 9px; min-height: 104px; display: flex; flex-direction: column; overflow: hidden; }
+.tiles { flex: 0.45 1 0; min-height: min-content; max-height: 290px; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: var(--gap); }
+.tile { position: relative; padding: 10px 12px 9px; min-height: 104px; display: flex; flex-direction: column; overflow: hidden; text-align: left; font: inherit; color: inherit; width: 100%; }
+.tile:active, .hero:active { transform: scale(.985); }
+.hero { cursor: pointer; }
 .th { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 450; color: var(--muted); white-space: nowrap; min-width: 0; }
 .th img { width: 14px; height: 14px; opacity: .9; }
 .th .state { margin-left: auto; color: var(--accent); }
+.th .more { margin-left: -2px; }
 .big { font-size: 22px; font-weight: 400; letter-spacing: -0.02em; line-height: 1.15; margin-top: 4px; font-variant-numeric: tabular-nums; }
 .big small { font-size: 12.5px; color: var(--muted); letter-spacing: 0; }
 .big.wtemp { color: var(--accent); }
@@ -207,16 +210,15 @@ body::before {
 .tag { padding: 1px 7px; border-radius: 8px; background: var(--sel); color: var(--accent); }
 
 .moon .moonimg { position: absolute; right: 10px; top: 10px; width: 50px; height: 50px; }
-.moon .moonimg.nasa {
-  width: 66px; height: 66px; right: 2px; top: 2px; mix-blend-mode: var(--moon-blend);
-  -webkit-mask: radial-gradient(circle, #000 64%, transparent 70%); mask: radial-gradient(circle, #000 64%, transparent 70%);
-}
+.moonimg.nasa { mix-blend-mode: var(--moon-blend); -webkit-mask: radial-gradient(circle, #000 64%, transparent 70%); mask: radial-gradient(circle, #000 64%, transparent 70%); }
+.moon .moonimg.nasa { width: 66px; height: 66px; right: 2px; top: 2px; }
 .moon .sub { max-width: calc(100% - 44px); }
 
-.sparkwrap { position: relative; margin-top: auto; height: 24px; }
-.tide .sparkwrap { height: 32px; margin: 12px 0 12px; }
+.sparkwrap { position: relative; margin-top: auto; flex: 1 1 auto; min-height: 20px; max-height: 70px; }
+.tide .sparkwrap { min-height: 24px; margin: 11px 0 11px; }
+.tide .foot { flex-wrap: nowrap; white-space: nowrap; overflow: hidden; }
 .tide .foot { padding-top: 0; }
-.duo + .sparkwrap { margin-top: 6px; height: 20px; }
+.duo + .sparkwrap { margin-top: 6px; }
 .spark { width: 100%; height: 100%; overflow: visible; display: block; }
 .spark .line { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
 .spark .area { fill: var(--area); }
@@ -235,31 +237,147 @@ body::before {
 .station .chev { align-self: center; }
 .station select { position: absolute; inset: -6px; opacity: 0; width: calc(100% + 12px); font-size: 16px; }
 
-/* ---------- uurstrook: groeit mee met de vrije ruimte ---------- */
-.hours { flex: 1 1 auto; display: flex; padding: 7px 0 6px 10px; overflow: hidden; min-height: 150px; max-height: 196px; }
-.labels, .col { display: grid; grid-template-rows: 16px 22px minmax(26px, 1fr) 0 15px 15px 15px; row-gap: 3px; align-items: center; }
-.labels { flex: none; padding-right: 6px; font-size: 10.5px; color: var(--muted); border-right: 1px solid var(--line); }
-.labels span { display: flex; align-items: center; gap: 3px; white-space: nowrap; }
-.labels .bar { align-self: end; padding-bottom: 2px; }
-.labels img { width: 11px; height: 11px; }
-.strip { display: flex; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; padding: 0 8px 0 2px; }
-.strip::-webkit-scrollbar { display: none; }
-.col { flex: none; width: 40px; justify-items: center; border-radius: 12px; padding: 0 0 2px; scroll-snap-align: center; transition: background .2s; }
-.col.night { background: var(--night); }
-.col.dusk { background: var(--dusk); }
-.col.sel { background: var(--sel); box-shadow: 0 0 0 1px var(--sel-line) inset; }
-.col.past { opacity: .4; }
-.col .hh { display: flex; align-items: center; gap: 1px; font-size: 11.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
-.col .ev { width: 12px; height: 12px; margin-left: -4px; }
-.col .wx { width: 20px; height: 20px; }
-.col .bar { position: relative; width: 10px; height: 100%; border-radius: 5px; background: var(--track); display: flex; align-items: flex-end; overflow: hidden; }
-.col .bar i { display: block; width: 100%; border-radius: 5px; background: hsl(193 62% calc(var(--bar-l0) + var(--q) * var(--bar-dl))); }
-.num { font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 1px; }
-.num small { font-size: 8.5px; color: var(--muted); }
-.fishn { visibility: hidden; height: 0; overflow: hidden; }
-.rain.hi { color: var(--rain); font-weight: 550; }
-.sun.hi { color: var(--sun); font-weight: 550; }
-.wind svg { width: 9px; height: 9px; fill: var(--text-2); margin-right: 2px; }
+/* ---------- vangstkans per uur ---------- */
+.daycard { flex: 2 1 0; min-height: min-content; display: flex; flex-direction: column; padding: 10px 0 6px; min-height: 0; }
+.dhead { display: flex; align-items: baseline; gap: 10px; padding: 0 12px; font-size: 13px; color: var(--text-2); }
+.dhead .dbest { color: var(--muted); }
+.dmore { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; font-size: 13px; color: var(--accent); }
+.more { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; opacity: .6; flex: none; }
+.daycard > .ichart { flex: 1 1 auto; min-height: 70px; max-height: 210px; margin: 8px 12px 0; }
+.daycard .ytick { left: auto; right: 0; font-size: 9.5px; opacity: .8; }
+.hrow { flex: none; display: flex; overflow-x: auto; scrollbar-width: none; padding: 6px 8px 2px; scroll-snap-type: x proximity; }
+.hrow::-webkit-scrollbar { display: none; }
+.hc {
+  flex: none; width: 50px; display: grid; grid-template-rows: 18px 26px 15px 18px 15px; justify-items: center; align-items: center; row-gap: 1px;
+  padding: 4px 0; border-radius: 14px; scroll-snap-align: center;
+}
+.hc.sel { background: var(--sel); box-shadow: 0 0 0 1px var(--sel-line) inset; }
+.hc.past { opacity: .45; }
+.ht { font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.hc img { width: 24px; height: 24px; }
+.hrain { font-size: 12px; font-weight: 500; color: var(--rain); }
+.htemp { font-size: 15px; color: var(--text); font-variant-numeric: tabular-nums; }
+.hwind { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.hwind svg { width: 9px; height: 9px; fill: currentColor; }
+
+/* ---------- interactieve grafiek ---------- */
+.ichart { position: relative; display: flex; flex-direction: column; touch-action: pan-y; user-select: none; -webkit-user-select: none; cursor: crosshair; }
+.plot { position: relative; flex: 1 1 auto; min-height: 0; }
+.plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.plot .line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.plot .area { stroke: none; fill: var(--area); }
+.plot .fishline.area { fill: url(#none); fill: var(--area); }
+.plot .airline { stroke: var(--muted); stroke-width: 1.6; }
+.plot .waterline { stroke: var(--accent); }
+.plot .grid { stroke: var(--line); stroke-width: 1; }
+.plot .now { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; opacity: .7; }
+.plot .nightband { fill: var(--night); }
+.plot .bestband { fill: var(--sel); }
+.plot .fcband { fill: var(--track); }
+.ytick { position: absolute; left: 0; transform: translateY(-50%); font-style: normal; font-size: 10px; color: var(--muted); }
+.cmark { position: absolute; width: 0; height: 0; }
+.cmark em { position: absolute; left: 0; transform: translateX(-50%); font-style: normal; font-size: 10.5px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cmark.top em { bottom: 4px; }
+.cmark.bot em { top: 4px; }
+.cmark.r em { transform: translateX(-100%); }
+.cmark.l em { transform: none; }
+.cevent { position: absolute; top: 0; transform: translateX(-50%); display: flex; align-items: center; gap: 2px; font-style: normal; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; pointer-events: none; }
+.cevent img { width: 14px; height: 14px; }
+.cross { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px solid var(--text-2); opacity: 0; pointer-events: none; }
+.cdot { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--dot-ring); opacity: 0; pointer-events: none; }
+.cdot.airline { background: var(--muted); }
+.bubble {
+  position: absolute; top: -4px; transform: translate(-50%, -100%); padding: 4px 9px; border-radius: 9px; white-space: nowrap;
+  background: var(--card-hi); border: 1px solid var(--line); box-shadow: var(--shadow); font-size: 12px; color: var(--text-2); opacity: 0; pointer-events: none;
+}
+.bubble b { color: var(--text); font-weight: 500; }
+.bubble .wc { color: var(--accent); }
+.scrubbing .cross, .scrubbing .cdot, .scrubbing .bubble { opacity: 1; }
+.daycard .scrubbing .bubble { display: none; }
+.xticks { position: relative; height: 15px; flex: none; margin-top: 3px; }
+.xticks span { position: absolute; transform: translateX(-50%); font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+.xticks span:first-child { transform: none; }
+
+/* ---------- groot venster ---------- */
+.dscrim { position: fixed; inset: 0; z-index: 20; background: var(--scrim); animation: fade .25s; }
+.detail {
+  position: fixed; z-index: 21; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + 8px);
+  width: min(calc(100% - 16px), 620px); max-height: calc(100dvh - env(safe-area-inset-top) - 24px);
+  display: flex; flex-direction: column; background: var(--sheet); border: 1px solid var(--line); border-radius: 24px; box-shadow: 0 20px 60px -20px rgba(0,0,0,.6);
+}
+.detail { translate: 0 0; }
+.dtop { position: relative; display: flex; align-items: center; justify-content: space-between; padding: 14px 14px 6px 18px; touch-action: none; }
+.dgrab { position: absolute; left: 50%; top: 6px; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--fish-empty); }
+.dtop h2 { font-size: 17px; font-weight: 500; }
+.dbody { overflow-y: auto; padding: 4px 18px 18px; display: flex; flex-direction: column; gap: 12px; }
+.dbody .ichart .plot { height: 190px; flex: none; }
+.dbody .ichart { margin-top: 22px; }
+.dbody h3 { font-size: 13px; font-weight: 500; color: var(--muted); margin-top: 4px; }
+.dnote { font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.facts div { padding: 9px 11px; border-radius: 13px; background: var(--card); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
+.facts span { font-size: 11.5px; color: var(--muted); }
+.facts b { font-size: 15px; font-weight: 450; }
+.legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin-top: -4px; }
+.lg::before { content: ''; display: inline-block; width: 14px; height: 2px; border-radius: 1px; margin-right: 6px; vertical-align: middle; background: var(--muted); }
+.lg-water::before { background: var(--accent); }
+
+.dsummary { display: flex; align-items: center; gap: 14px; }
+.dsummary .fishrow { margin: 0; gap: 6px; }
+.dsummary b { display: block; font-size: 18px; font-weight: 450; }
+.dsummary span { font-size: 12.5px; color: var(--muted); }
+.members { display: flex; flex-direction: column; gap: 6px; }
+.mrow { display: grid; grid-template-columns: 96px auto 1fr; align-items: center; gap: 10px; font-size: 13.5px; }
+.mrow .fishrow, .dsummary .fishrow { justify-content: flex-start; }
+.mrow .fish, .dsummary .fish { width: 26px; height: 12px; }
+.mrow .fishrow { margin: 0; gap: 4px; }
+.mrow em { font-style: normal; font-size: 12.5px; color: var(--muted); }
+.factors { display: flex; flex-direction: column; gap: 10px; }
+.frow { display: grid; grid-template-columns: 1fr 1.1fr; grid-template-rows: auto auto; column-gap: 12px; row-gap: 3px; align-items: center; }
+.fname { font-size: 13.5px; display: flex; flex-direction: column; }
+.fname small { font-size: 11px; color: var(--muted); }
+.fbar { height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; }
+.fbar i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+.ftext { grid-column: 2; font-size: 12px; color: var(--muted); }
+.frow .fname { grid-row: span 2; }
+
+.moonview { display: flex; align-items: center; gap: 18px; min-height: 150px; }
+.moonimg.big { position: static; width: 150px; height: 150px; flex: none; }
+.moonimg.nasa.big { width: 170px; height: 170px; margin: -10px; }
+.mtext .mdate { font-size: 13px; color: var(--muted); text-transform: capitalize; }
+.mtext .big { font-size: 28px; }
+.mtext .foot { margin-top: 6px; }
+.slider { width: 100%; accent-color: var(--accent); height: 28px; }
+.sliderlabels { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: -8px; }
+.phases { display: flex; flex-direction: column; }
+.phases div { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+.phases span { color: var(--muted); }
+.phases b { font-weight: 450; }
+
+.station.big { margin-top: 0; }
+.station.big span { font-size: 16px; }
+.tdays { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tday { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.tday b { font-weight: 500; color: var(--text); margin-bottom: 2px; }
+.tday small { color: var(--muted); }
+.tday .lw { color: var(--muted); }
+.plot .tline { stroke: var(--accent); }
+
+.tablewrap { overflow-x: auto; margin: 0 -8px; }
+.htable { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.htable th { font-weight: 450; font-size: 11px; color: var(--muted); text-align: left; padding: 4px 6px; white-space: nowrap; position: sticky; top: 0; background: var(--sheet); }
+.htable th small { font-size: 9.5px; }
+.htable td { padding: 5px 6px; border-top: 1px solid var(--line); white-space: nowrap; color: var(--text-2); }
+.htable td img { width: 20px; height: 20px; }
+.htable td small { color: var(--muted); font-size: 11px; }
+.htable tr.sel td { background: var(--sel); }
+.htable tr.past td { opacity: .5; }
+.htable .rc { color: var(--rain); }
+.htable .fs { color: var(--text); }
+
+/* Vloeiend uitgroeien van tegel naar venster */
+::view-transition-group(*) { animation-duration: .36s; animation-timing-function: cubic-bezier(.2, .9, .3, 1); }
+::view-transition-old(*), ::view-transition-new(*) { height: 100%; object-fit: cover; }
 
 /* ---------- bladen ---------- */
 .sheetbg { position: fixed; inset: 0; background: var(--scrim); animation: fade .2s; z-index: 10; }
@@ -300,8 +418,16 @@ body::before {
 .welcome p { color: var(--text-2); line-height: 1.55; margin-bottom: 8px; }
 
 /* ---------- schermmaten ----------
-   Hoogte: iPhone als app ~800, Safari en Android-Chrome met balken 640–780. Breedte: Samsung 360, oude toestellen 320. */
-@media (min-height: 880px) { :root { --gap: 10px; } .tile { min-height: 116px; } .fish { width: 52px; height: 17px; } }
+   De tegels en de dagkaart verdelen de vrije hoogte; hieronder alleen het kleiner maken. */
+@media (min-height: 880px) { :root { --gap: 10px; } .fish { width: 50px; height: 21px; } }
+@media (max-height: 800px) {
+  .tile { padding: 8px 11px 8px; }
+  .tide .sparkwrap { margin: 10px 0 10px; }
+  .daycard { padding-top: 8px; }
+  .daycard > .ichart { min-height: 58px; }
+  .hc { grid-template-rows: 16px 22px 14px 17px 14px; padding: 3px 0; }
+  .hc img { width: 21px; height: 21px; }
+}
 @media (max-height: 720px) {
   :root { --gap: 6px; }
   .screen { padding-top: calc(env(safe-area-inset-top) + 5px); }
@@ -311,18 +437,31 @@ body::before {
   .hero { padding: 6px 10px 9px; }
   .fishrow { margin: 5px 0 4px; }
   .verdict { font-size: 20px; }
-  .tile { min-height: 92px; padding: 8px 11px 8px; }
-  .sparkwrap { height: 20px; }
-  .tide .sparkwrap { height: 26px; margin: 10px 0 10px; }
-  .moon .moonimg.nasa { width: 58px; height: 58px; }
-  .hours { min-height: 128px; padding: 5px 0 4px 8px; }
-  .labels, .col { grid-template-rows: 14px 18px minmax(22px, 1fr) 0 14px 14px 14px; row-gap: 1px; }
-  .col .wx { width: 17px; height: 17px; }
+  .tile { min-height: 0; padding: 7px 10px 7px; }
+  .big { margin-top: 2px; }
+  .tide .sparkwrap { min-height: 20px; margin: 10px 0 9px; }
+  .station { margin-top: 2px; }
+  .foot { padding-top: 3px; }
+  .moon .moonimg.nasa { width: 56px; height: 56px; }
+  .tcm { display: none; }
+  .daycard { padding-top: 8px; }
+  .daycard > .ichart { min-height: 56px; }
+  .hc { grid-template-rows: 15px 21px 13px 16px 13px; width: 46px; padding: 2px 0; }
+  .hc img { width: 20px; height: 20px; }
+  .hrow { padding-top: 3px; }
+  .xticks { margin-top: 1px; }
+}
+@media (max-height: 680px) {
+  .daycard .xticks { display: none; }
+  .daycard > .ichart { margin-top: 4px; }
+  .duo + .sparkwrap { display: none; }
 }
 @media (max-height: 640px) {
-  .tile { min-height: 84px; }
+  .hero { padding-bottom: 7px; }
+  .fishrow { margin: 4px 0 2px; }
+  .verdict { font-size: 19px; }
   .sub { font-size: 11.5px; }
-  .hours { min-height: 116px; }
+  .daycard > .ichart { min-height: 46px; }
 }
 @media (max-width: 380px) {
   .screen { padding-left: 10px; padding-right: 10px; }
@@ -334,29 +473,29 @@ body::before {
   .big small { font-size: 12px; }
   .th { font-size: 12px; gap: 5px; }
   .moon .moonimg.nasa { width: 56px; height: 56px; }
-  .fish { width: 40px; height: 13px; }
+  .fish { width: 38px; height: 16px; }
   .fishrow { gap: 8px; }
-  .col { width: 37px; }
-  .labels { font-size: 10px; padding-right: 4px; }
+  .hc { width: 46px; }
+  .moonimg.nasa.big { width: 140px; height: 140px; }
+  .tcm { display: none; }
 }
 @media (max-width: 340px) {
-  .labels img, .th img { display: none; }
   .top .water { flex-basis: 96px; }
   .water button { font-size: 12px; }
   .big { font-size: 18px; }
-  .station span { font-size: 13px; }
   .foot { font-size: 10.5px; }
-  .fish { width: 36px; height: 12px; }
+  .fish { width: 34px; height: 14px; }
 }
 /* Groot scherm (uitgevouwen Fold, tablet): breder, tegels naast elkaar */
 @media (min-width: 720px) {
   .screen { max-width: 920px; padding-left: 24px; padding-right: 24px; }
   .species { margin: 0; padding: 0; flex-wrap: wrap; overflow: visible; }
-  .tiles { grid-template-columns: repeat(4, 1fr); }
-  .fish { width: 64px; height: 21px; }
+  .tiles { grid-template-columns: repeat(4, 1fr); flex-grow: 0.6; }
+  .fish { width: 60px; height: 26px; }
   .fishrow { gap: 14px; }
   .verdict { font-size: 26px; }
-  .col { flex: 1 0 40px; }
+  .hc { flex: 1 0 50px; }
+  .daycard > .ichart { max-height: 360px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
 .sheethead { display: flex; align-items: center; justify-content: space-between; padding-top: 4px; }

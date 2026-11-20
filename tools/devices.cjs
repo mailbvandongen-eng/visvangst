@@ -17,14 +17,16 @@ const url = process.argv[2] || 'http://localhost:8795/visvangst/'
     const r = await p.evaluate(() => {
       const W = innerWidth, H = innerHeight
       const wide = [...document.querySelectorAll('.screen *')].filter(e => {
-        if (e.closest('.species, .strip')) return false // die scrollen bewust horizontaal
+        if (e.closest('.species, .hrow')) return false // die scrollen bewust horizontaal
         const b = e.getBoundingClientRect(); return b.width && (b.right > W + 0.5 || b.left < -0.5)
       }).map(e => e.className || e.tagName).slice(0, 5)
       // tekst die buiten zijn eigen vak valt (niet bewust afgekapt)
       const clipped = [...document.querySelectorAll('.big, .verdict, .bestline, .dayname b, .water button, .sp span, .th')].filter(e => e.scrollWidth > e.clientWidth + 1).map(e => e.className + ':' + e.textContent.trim().slice(0, 20))
-      return { W, H, scrollH: document.documentElement.scrollHeight, scrollW: document.documentElement.scrollWidth, wide, clipped }
+      const last = document.querySelector('.daycard')
+      const empty = last ? Math.round(H - last.getBoundingClientRect().bottom) : 0
+      return { W, H, scrollH: document.documentElement.scrollHeight, scrollW: document.documentElement.scrollWidth, wide, clipped, empty }
     })
-    const fits = r.scrollH <= r.H ? 'past' : `${r.scrollH - r.H}px te hoog`
+    const fits = r.scrollH > r.H ? `${r.scrollH - r.H}px te hoog` : r.empty > 40 ? `${r.empty}px leeg onderaan` : 'past'
     console.log(`${name.padEnd(22)} ${r.W}x${r.H}  ${fits}${r.scrollW > r.W ? '  TE BREED ' + r.scrollW : ''}${r.wide.length ? '  buiten beeld: ' + r.wide.join(',') : ''}${r.clipped.length ? '  afgekapt: ' + r.clipped.join(' | ') : ''}${errs.length ? '  FOUT: ' + errs.join(';') : ''}`)
     await p.screenshot({ path: `/tmp/dev-${name.replace(/\W+/g, '_')}.png` })
     await ctx.close()

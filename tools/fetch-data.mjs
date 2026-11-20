@@ -152,10 +152,10 @@ for (let i = 0; i < temps.length; i += 50) {
 }
 console.log(`watertemperatuur: ${temps.length} actuele meetpunten (${temps.filter(x => x.z).length} zout)`)
 
-// ---------- maan (NASA Dial-A-Moon) ----------
+// ---------- maan (NASA Dial-A-Moon): een foto per dag voor de komende 30 dagen ----------
 mkdirSync(OUT + 'moon', { recursive: true })
 const moon = {}
-for (let k = 0; k < 4; k++) {
+for (let k = 0; k < 30; k++) {
   const day = new Date(amsterdamMidnight(new Date()).getTime() + k * DAY + 22 * 3600000)
   const key = ymdNL(day)
   const iso = day.toISOString().slice(0, 16)
