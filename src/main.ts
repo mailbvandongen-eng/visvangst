@@ -227,6 +227,8 @@ function sparkline(vals: (number | null)[], opts: { w: number; h: number; sel?: 
   for (const m of opts.marks ?? []) {
     if (vals[m.i] == null) continue
     const pct = (x(m.i) / w) * 100
+    // Een tijd die onder de stip van het gekozen uur valt, staat al onderaan de tegel
+    if (opts.sel != null && Math.abs(pct - (x(opts.sel) / w) * 100) < 6) continue
     const edge = pct > 86 ? 'r' : pct < 14 ? 'l' : ''
     dots += `<i class="mark ${m.top ? 'top' : 'bot'} ${edge}" style="left:${pct}%;top:${(y(vals[m.i]!) / h) * 100}%"><em>${m.label}</em></i>`
   }

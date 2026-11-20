@@ -7,7 +7,7 @@ const { chromium } = require('/root/tools/pw/node_modules/playwright-core')
   const p = await ctx.newPage()
   p.on('console', m => m.type() !== 'log' || console.log('console:', m.text()))
   p.on('pageerror', e => console.log('pageerror:', e.message))
-  await p.goto('http://localhost:8795/visvangst/')
+  await p.goto('' + (process.env.URL || "http://localhost:8795/visvangst/") + '')
   await p.waitForSelector('.hero:not(.loading)', { timeout: 30000 }).catch(() => console.log('geen hero'))
   await p.waitForTimeout(1500)
   for (const a of acts) {
