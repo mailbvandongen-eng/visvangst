@@ -6,12 +6,13 @@ Hoe groot is de kans op actieve vis, hier en nu? EÃ©n scherm met een score van Â
 
 ## Wat er op het scherm staat
 
-- **Visjes**: de kans per uur, met het beste moment van de dag en waarom (plus- en minpunten).
-- **Zoet of zout**, en een soort of groep: roofvis (snoek, snoekbaars, baars), witvis, karper, zeevis (zeebaars, kabeljauw en wijting, platvis, makreel).
+- **Visjes**: de kans per uur, met het beste moment van de dag. De uitleg van de score staat in het menu.
+- **Zoet of zout** (standaard zoet), en een soort of groep: roofvis (snoek, snoekbaars, baars), witvis, karper, zeevis (zeebaars, kabeljauw en wijting, platvis, makreel).
 - **Vandaag, morgen, overmorgen**: morgen en overmorgen zijn een verwachting.
 - **Maan**: foto van NASA voor die dag, percentage verlicht, springtij of doodtij.
 - **Luchtdruk** met trend, **temperatuur** van lucht en water, **getij** van het dichtstbijzijnde station (zelf te kiezen).
 - **Per uur**: visscore, regenkans, zon, wind (Beaufort), zonsopkomst en -ondergang.
+- **Donker of licht**: standaard donker, de keuze wordt onthouden (menu).
 
 ## Hoe de score werkt
 
@@ -38,7 +39,7 @@ De factoren worden gecombineerd met een gewogen meetkundig gemiddelde, zodat Ã©Ã
 - Maanfoto's: NASA Scientific Visualization Studio (Dial-A-Moon)
 - Plaatsnaam: Â© OpenStreetMap-bijdragers (Nominatim)
 - Iconen: [Microsoft Fluent Emoji](https://github.com/microsoft/fluentui-emoji) (MIT)
-- Vissilhouetten: [PhyloPic](https://www.phylopic.org) (publiek domein / CC0)
+- Vissilhouetten en het score-visje (makreel): [PhyloPic](https://www.phylopic.org) (publiek domein / CC0)
 
 Rijkswaterstaat stuurt geen CORS-header mee. Daarom haalt een GitHub Action elke drie uur getij, watertemperatuur en maanfoto's op (`tools/fetch-data.mjs`) en publiceert ze als statische bestanden samen met de site.
 

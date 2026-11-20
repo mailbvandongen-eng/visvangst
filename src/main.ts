@@ -3,10 +3,10 @@ import './style.css'
 import * as SunCalc from 'suncalc'
 import {
   loadIndex, loadTide, loadWeather, loadMarine, loadRiver, placeName, searchPlace,
-  buildHours, tideAt, km, ymd, hourNL, dayStart, addDays, seaBearing,
+  buildHours, tideAt, km, ymd, hourNL, dayStart, addDays,
   type Index, type Tide, type Weather, type Marine, type River, type Station, type TempStation,
 } from './data'
-import { CHOICES, PROFILES, LABELS, closedSeason, scoreHour, bft, type Choice, type HourInput, type HourScore, type Water } from './score'
+import { CHOICES, LABELS, closedSeason, scoreHour, bft, type Choice, type HourInput, type HourScore, type Water } from './score'
 
 const BASE = import.meta.env.BASE_URL
 const icon = (n: string) => `${BASE}icons/${n}.webp`
@@ -17,17 +17,25 @@ interface Loc { lat: number; lon: number; name: string; gps: boolean }
 const saved = JSON.parse(localStorage.getItem('visvangst') ?? '{}')
 const S = {
   loc: (saved.loc ?? null) as Loc | null,
-  water: (saved.water ?? null) as Water | null,
+  water: (saved.water ?? 'zoet') as Water | null,
+  theme: (saved.theme === 'light' ? 'light' : 'dark') as 'dark' | 'light',
   choice: (saved.choice ?? { zoet: 'roofvis', zout: 'zeevis' }) as Record<Water, string>,
   tideOverride: (saved.tideOverride ?? null) as { key: string; code: string } | null,
   day: 0,
   sel: null as number | null,
-  sheet: null as null | 'loc' | 'info',
+  sheet: null as null | 'loc' | 'menu',
   search: [] as { name: string; sub: string; lat: number; lon: number }[],
   locating: false,
   error: '' as string,
 }
-const persist = () => localStorage.setItem('visvangst', JSON.stringify({ loc: S.loc, water: S.water, choice: S.choice, tideOverride: S.tideOverride }))
+const persist = () => localStorage.setItem('visvangst', JSON.stringify({ loc: S.loc, water: S.water, choice: S.choice, tideOverride: S.tideOverride, theme: S.theme }))
+
+function applyTheme() {
+  document.documentElement.dataset.theme = S.theme
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', S.theme === 'light' ? '#eef3f6' : '#071521')
+  document.querySelector('meta[name=color-scheme]')?.setAttribute('content', S.theme)
+}
+applyTheme()
 
 const D = {
   index: null as Index | null,
@@ -112,12 +120,7 @@ async function loadAll() {
       loadWeather(lat, lon), loadMarine(lat, lon), loadRiver(lat, lon),
     ])
     Object.assign(D, { index, weather, marine, river })
-    if (!S.water) {
-      // Eerste keer: aan de kust is zout de logische keuze
-      const nearSalt = index.temp.filter(t => t.z).some(t => km(t, S.loc!) < 6) || seaBearing(lat, lon) != null
-      S.water = nearSalt ? 'zout' : 'zoet'
-      persist()
-    }
+    if (!S.water) { S.water = 'zoet'; persist() }
     D.tideList = index.tide.map(s => ({ ...s, d: km(s, S.loc!) })).sort((a, b) => a.d - b.d)
     await pickTide()
   } catch (e) {
@@ -171,42 +174,13 @@ function rebuild() {
 }
 
 // ---------- weergave ----------
-function fishRow(n: number, size = 'lg') {
-  let h = `<div class="fishrow ${size}" role="img" aria-label="${fmt(n, n % 1 ? 1 : 0)} van 5 visjes">`
+function fishRow(n: number) {
+  let h = `<div class="fishrow" role="img" aria-label="${fmt(n, n % 1 ? 1 : 0)} van 5 visjes">`
   for (let i = 0; i < 5; i++) {
     const fill = Math.max(0, Math.min(1, n - i))
-    const cls = fill >= 1 ? 'full' : fill > 0 ? 'half' : 'empty'
-    h += `<span class="fish ${cls}" style="--i:${i}"><img class="ghost" src="${icon('fish')}" alt=""><img class="fill" src="${icon('fish')}" alt=""></span>`
+    h += `<span class="fish ${fill >= 1 ? 'full' : fill > 0 ? 'half' : 'empty'}"></span>`
   }
   return h + '</div>'
-}
-
-function describe(f: { key: string; f: number }, h: HourInput, s: HourScore): string {
-  const good = f.f >= 0.75
-  const prof = PROFILES.find(p => p.name === s.best)
-  switch (f.key) {
-    case 'temp': return good ? `Water ${fmt(h.waterTemp!, 0)}° is goed` : `Water ${fmt(h.waterTemp!, 0)}° is ${prof && h.waterTemp! < prof.temp[1] ? 'te koud' : 'te warm'}`
-    case 'light': return h.twilight > 0.5 ? 'Schemer' : h.sunAlt < -6 ? (good ? 'Donker, vis jaagt' : 'Donker') : good ? 'Goed licht' : h.sunFrac > 0.5 ? 'Felle zon' : 'Weinig actie overdag'
-    case 'tide': return good ? (h.tideRising ? 'Opkomend tij loopt' : 'Het tij loopt') : 'Stil water (kentering)'
-    case 'waves': return good ? 'Mooie golfslag' : (h.waves ?? 0) > 1.5 ? 'Te ruwe zee' : 'Vlakke zee'
-    case 'wind': return good ? (h.onshore ? 'Aanlandige wind' : 'Fijne wind') : bft(h.windKmh) >= 6 ? 'Harde wind' : 'Windstil'
-    case 'rain': return h.thunder ? 'Onweer' : good ? (h.rainMm >= 0.1 ? 'Lichte regen' : 'Droog') : 'Flinke regen'
-    case 'pressure': return good ? 'Dalende luchtdruk' : h.dp3 > 0.5 ? 'Stijgende luchtdruk' : 'Snel dalende druk'
-    case 'river': return 'Hoog water in de rivier'
-    case 'season': return good ? 'Volop seizoen' : 'Buiten het seizoen'
-    default: return ''
-  }
-}
-
-function whyChips(s: HourScore, h: HourInput) {
-  const scored = s.factors.filter(f => f.key !== 'moon')
-  const pos = scored.filter(f => f.f >= 0.8).sort((a, b) => b.w * b.f - a.w * a.f).slice(0, 2)
-  const neg = scored.filter(f => f.f <= 0.5).sort((a, b) => a.f * a.w - b.f * b.w - (b.w - a.w)).slice(0, 2)
-  const chip = (f: { key: string; f: number }, ok: boolean) => `<span class="chip ${ok ? 'pos' : 'neg'}"><b>${ok ? '+' : '−'}</b>${esc(describe(f, h, s))}</span>`
-  const list = [...pos.map(f => chip(f, true)), ...neg.map(f => chip(f, false))]
-  // Hoogstens drie, zodat het op smalle schermen op één of twee regels past
-  if (list.length > 3) list.splice(pos.length > 1 ? 1 : 3, 1)
-  return list.join('')
 }
 
 function sparkline(vals: (number | null)[], opts: { w: number; h: number; sel?: number; pad?: number; area?: boolean; marks?: { i: number; label: string; top: boolean }[] }) {
@@ -255,7 +229,8 @@ function render() {
     let a = i, b = i
     while (a > 0 && scores[a - 1].fish >= best.fish && (S.day > 0 || scores[a - 1].t >= nowH)) a--
     while (b < scores.length - 1 && scores[b + 1].fish >= best.fish) b++
-    win = `${hhmm(scores[a].t)}–${hhmm(scores[b].t + 3600000)}`
+    const endT = scores[b].t + 3600000
+    win = `${hhmm(scores[a].t)}–${hourNL(endT) === 0 ? '24:00' : hhmm(endT)}`
   }
   const selT = S.sel ?? (S.day === 0 ? nowH : best?.t ?? dayFrom)
   const si = Math.max(0, hours.findIndex(h => h.t === selT))
@@ -263,14 +238,13 @@ function render() {
   const closed = closedSeason(c, new Date(dayFrom + 12 * 3600000))
 
   const label = ss ? (ss.cap ? `${LABELS[String(ss.fish)]} · ${ss.cap.toLowerCase()}` : LABELS[String(ss.fish)]) : ''
-  const heroWhen = !sh ? '' : S.sel != null ? `Om ${hhmm(sh.t)}` : S.day === 0 ? 'Nu' : 'Beste moment'
+  const heroWhen = !sh ? '' : S.sel != null ? `Om ${hhmm(sh.t)}` : S.day === 0 ? 'Nu' : `Beste moment ${win}`
   const tone = ss ? Math.round(ss.fish * 2) : 0
 
   $app.innerHTML = `
-  <div class="screen tone-${tone}">
+  <div class="screen tone-${tone}" style="--fishm:url(${BASE}fish/makreel.svg)">
     <header class="top">
       <button class="place" data-act="sheet-loc">
-        <img src="${icon('round_pushpin')}" alt="">
         <span class="pname">${esc(S.loc.name || 'Locatie…')}</span>
         <svg class="chev" viewBox="0 0 12 12"><path d="M3 4.5l3 3 3-3"/></svg>
       </button>
@@ -279,7 +253,7 @@ function render() {
         <button role="tab" aria-selected="${S.water === 'zoet'}" data-act="water" data-v="zoet">Zoet</button>
         <button role="tab" aria-selected="${S.water === 'zout'}" data-act="water" data-v="zout">Zout</button>
       </div>
-      <button class="round" data-act="sheet-info" aria-label="Uitleg">i</button>
+      <button class="round" data-act="sheet-menu" aria-label="Menu"><svg viewBox="0 0 14 14"><path d="M2.5 4h9M2.5 7h9M2.5 10h9"/></svg></button>
     </header>
 
     <div class="species">
@@ -298,12 +272,11 @@ function render() {
       </div>
       ${fishRow(ss.fish)}
       <h1 class="verdict">${label}</h1>
-      <div class="meta">
-        <span class="when">${heroWhen}${c.members.length > 1 && ss ? ` · vooral <b>${esc(ss.best.toLowerCase())}</b>` : ''}</span>
-        ${best ? `<span class="bestline"><img src="${icon('fishing_pole')}" alt="">Beste moment <b>${win}</b><span class="score">${fmt(best.fish, best.fish % 1 ? 1 : 0)}<img class="mini" src="${icon('fish')}" alt="visjes"></span></span>` : ''}
-      </div>
-      <div class="why">${whyChips(ss, sh)}</div>
-      ${closed ? `<div class="notice"><img src="${icon('high_voltage')}" alt=""> ${closed}</div>` : ''}
+      <p class="meta">${[
+        heroWhen + (c.members.length > 1 && ss ? ` · vooral ${esc(ss.best.toLowerCase())}` : ''),
+        best && (S.sel != null || S.day === 0) ? `beste moment <span class="nw">${win}</span>` : '',
+      ].filter(Boolean).join(' · ')}</p>
+      ${closed ? `<div class="notice">${closed}</div>` : ''}
     </section>
 
     <section class="tiles">
@@ -314,11 +287,10 @@ function render() {
     </section>
 
     ${hourStrip(hours, scores, si, nowH)}
-    <footer>Bijgewerkt ${D.index ? hhmm(D.index.generated) : ''} · Open-Meteo · Rijkswaterstaat · NASA</footer>
     `}
   </div>
   ${S.sheet === 'loc' ? locSheet() : ''}
-  ${S.sheet === 'info' ? infoSheet() : ''}`
+  ${S.sheet === 'menu' ? menuSheet() : ''}`
 
   const strip = $app.querySelector<HTMLElement>('.strip')
   const selEl = strip?.querySelector<HTMLElement>('.col.sel')
@@ -445,8 +417,8 @@ function hourStrip(hours: HourInput[], scores: HourScore[], si: number, nowH: nu
 }
 
 function welcome() {
-  return `<div class="screen welcome">
-    <img class="hello" src="${icon('fish')}" alt="">
+  return `<div class="screen welcome" style="--fishm:url(${BASE}fish/makreel.svg)">
+    <span class="hello"></span>
     <h1>Visvangst</h1>
     <p>Hoe groot is de kans op actieve vis, hier en nu? Getij, maan, luchtdruk, temperatuur, regen en zon op één scherm.</p>
     <button class="btn primary" data-act="gps">${S.locating ? 'Locatie zoeken…' : 'Gebruik mijn locatie'}</button>
@@ -460,17 +432,23 @@ function locSheet() {
   <div class="sheet" role="dialog" aria-label="Locatie kiezen">
     <div class="grab"></div>
     <h2>Waar ga je vissen?</h2>
-    <button class="btn primary" data-act="gps"><img src="${icon('round_pushpin')}" alt=""> ${S.locating ? 'Locatie zoeken…' : 'Gebruik mijn locatie'}</button>
+    <button class="btn primary" data-act="gps">${S.locating ? 'Locatie zoeken…' : 'Gebruik mijn locatie'}</button>
     <input class="search" type="search" placeholder="Zoek een plaats of water…" data-act="search" autocomplete="off" />
     <div class="results">${S.search.map((r, i) => `<button data-act="pick" data-v="${i}"><b>${esc(r.name)}</b><small>${esc(r.sub)}</small></button>`).join('')}</div>
   </div>`
 }
 
-function infoSheet() {
+function menuSheet() {
   return `<div class="sheetbg" data-act="close"></div>
-  <div class="sheet info" role="dialog" aria-label="Uitleg">
-    <div class="grab"></div>
-    <h2>Hoe werkt de score?</h2>
+  <div class="sheet info" role="dialog" aria-label="Menu">
+    <div class="sheethead"><h2>Menu</h2><button class="round" data-act="close" aria-label="Sluiten"><svg viewBox="0 0 14 14"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button></div>
+    <h3>Weergave</h3>
+    <div class="water theme" role="tablist">
+      <span class="pill ${S.theme === 'light' ? 'right' : ''}"></span>
+      <button role="tab" aria-selected="${S.theme === 'dark'}" data-act="theme" data-v="dark">Donker</button>
+      <button role="tab" aria-selected="${S.theme === 'light'}" data-act="theme" data-v="light">Licht</button>
+    </div>
+    <h3>Hoe werkt de score?</h3>
     <p>Per uur kijkt Visvangst naar wat vis actief maakt. Wat het zwaarst weegt, staat bovenaan.</p>
     <ul>
       <li><b>Watertemperatuur.</b> Elke soort heeft een eigen fijne temperatuur. Gemeten door Rijkswaterstaat, of geschat.</li>
@@ -485,7 +463,8 @@ function infoSheet() {
     <p class="small">Een score is een onderbouwde schatting, geen garantie. Let op de regels van je viswater.</p>
     <h3>Bronnen</h3>
     <p class="small">Weer, golven en rivierafvoer: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> (CC BY 4.0). Getij en watertemperatuur: Rijkswaterstaat. Maanfoto's: NASA Scientific Visualization Studio. Locatienaam: © OpenStreetMap. Iconen: Microsoft Fluent Emoji (MIT). Vissilhouetten: PhyloPic (publiek domein / CC0).</p>
-    <p class="small">Zet Visvangst op je beginscherm: tik op Deel en kies "Zet op beginscherm".</p>
+    <p class="small">Bijgewerkt: getij en watertemperatuur ${D.index ? hhmm(D.index.generated) : '–'}, weer bij het openen.</p>
+    <p class="small">Op je beginscherm zetten: iPhone via Deel → "Zet op beginscherm", Android via het menu → "Toevoegen aan startscherm".</p>
     <button class="btn" data-act="close">Sluiten</button>
   </div>`
 }
@@ -501,7 +480,8 @@ $app.addEventListener('click', async e => {
   else if (act === 'day') { S.day = Math.max(0, Math.min(2, S.day + Number(v))); S.sel = null; render() }
   else if (act === 'hour') { const t = Number(v); S.sel = S.sel === t ? null : t; const s = $app.querySelector<HTMLElement>('.strip'); const x = s?.scrollLeft; render(); const s2 = $app.querySelector<HTMLElement>('.strip'); if (s2 && x != null) s2.scrollLeft = x }
   else if (act === 'sheet-loc') { S.sheet = 'loc'; S.search = []; render(); $app.querySelector<HTMLInputElement>('.search')?.focus() }
-  else if (act === 'sheet-info') { S.sheet = 'info'; render() }
+  else if (act === 'sheet-menu') { S.sheet = 'menu'; render() }
+  else if (act === 'theme') { S.theme = v === 'light' ? 'light' : 'dark'; persist(); applyTheme(); render() }
   else if (act === 'close') { S.sheet = null; render() }
   else if (act === 'retry') loadAll()
   else if (act === 'gps') {
