@@ -341,7 +341,7 @@ function moonTile(t: number) {
   const m = moonInfo(t)
   const sn = springNeap(t)
   if (sn != null) m.tij = sn
-  const mt = SunCalc.getMoonTimes(new Date(dayStart(t)), S.loc!.lat, S.loc!.lon)
+  const mt = SunCalc.getMoonTimes(new Date(dayStart(t) + 12 * 3600000), S.loc!.lat, S.loc!.lon)
   return `<button class="tile moon" data-act="open" data-v="moon" ${vt('moon')}>
     <div class="th">Maan ${more}</div>
     ${moonImg(t)}
@@ -542,7 +542,7 @@ function moonViewInner() {
   const m = moonInfo(t)
   const sn = springNeap(t)
   const tij = sn != null ? sn : m.tij
-  const mt = SunCalc.getMoonTimes(new Date(dayStart(t)), S.loc!.lat, S.loc!.lon)
+  const mt = SunCalc.getMoonTimes(new Date(dayStart(t) + 12 * 3600000), S.loc!.lat, S.loc!.lon)
   return `${moonImg(t, 'big')}
     <div class="mtext">
       <div class="mdate">${S.moonDay === 0 ? 'Vanavond' : dayLong(t)}</div>

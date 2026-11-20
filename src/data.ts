@@ -216,7 +216,7 @@ export function buildHours(w: World, from: number, to: number): HourInput[] {
 
     out.push({
       t, month: Number(ymd(t).slice(5, 7)) - 1, waterTemp,
-      sunAlt: pos.altitude * 180 / Math.PI, twilight: tw,
+      sunAlt: pos.altitude, twilight: tw, // suncalc 2.x geeft graden
       sunFrac: Math.min(1, (W.sun[i] ?? 0) / 3600), cloud: W.cloud[i] ?? 50,
       pressure: W.pressure[i], dp3: p3 >= 0 ? W.pressure[i] - W.pressure[p3] : 0,
       windKmh: W.wind[i] ?? 0, gustKmh: W.gust[i] ?? 0, windDir: W.windDir[i] ?? 0, onshore,
