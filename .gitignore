@@ -1,3 +1,5 @@
 node_modules
 dist
 public/data
+tools/validatie/hhnk.json
+tools/validatie/dataset.json
