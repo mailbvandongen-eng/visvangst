@@ -843,6 +843,24 @@ const endPointer = () => {
 window.addEventListener('pointerup', endPointer)
 window.addEventListener('pointercancel', endPointer)
 
+// Nieuwe versie? Een geïnstalleerde app (Android, iPhone-beginscherm) herlaadt zichzelf niet en
+// kan niet ververst worden. Daarom: bij openen en bij terugkomen kijken of index.html een ander script noemt.
+const myScript = new URL(import.meta.url).pathname.split('/').pop()
+async function checkUpdate() {
+  if (import.meta.env.DEV) return
+  try {
+    const html = await (await fetch(`${BASE}index.html?v=${Date.now()}`, { cache: 'no-store' })).text()
+    const m = html.match(/assets\/(index-[\w-]+\.js)/)
+    if (m && myScript && m[1] !== myScript && !sessionStorage.getItem('vv-reload-' + m[1])) {
+      sessionStorage.setItem('vv-reload-' + m[1], '1') // nooit in een lus herladen
+      location.reload()
+    }
+  } catch { /* geen verbinding: later opnieuw */ }
+}
+checkUpdate()
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate() })
+setInterval(() => { if (document.visibilityState === 'visible') checkUpdate() }, 30 * 60000)
+
 // Ververs als de app weer in beeld komt na een tijdje
 let lastLoad = Date.now()
 document.addEventListener('visibilitychange', async () => {

@@ -1,12 +1,14 @@
 // Test op Android- en Samsung-toestellen: past alles in breedte en hoogte? node tools/devices.cjs [url]
 const { chromium, devices } = require('/root/tools/pw/node_modules/playwright-core')
-const LIST = ['iPhone 14', 'iPhone 14 app', 'iPhone SE', 'Galaxy S24', 'Galaxy S24 app', 'Galaxy S8', 'Galaxy A55', 'Galaxy Z Flip 7', 'Galaxy Z Fold 7 Cover', 'Galaxy Z Fold 7', 'Galaxy S9+', 'Galaxy S5', 'Pixel 9', 'Pixel 7', 'Pixel 8 Pro']
+const LIST = ['Galaxy A54 app', 'Galaxy A54', 'iPhone 14', 'iPhone 14 app', 'iPhone SE', 'Galaxy S24', 'Galaxy S24 app', 'Galaxy S8', 'Galaxy A55', 'Galaxy Z Flip 7', 'Galaxy Z Fold 7 Cover', 'Galaxy Z Fold 7', 'Galaxy S9+', 'Galaxy S5', 'Pixel 9', 'Pixel 7', 'Pixel 8 Pro']
 const url = process.argv[2] || 'http://localhost:8795/visvangst/'
 ;(async () => {
   const b = await chromium.launch({ executablePath: '/usr/bin/chromium', args: ['--no-sandbox'] })
   for (const name of LIST) {
     // 'app' = vanaf het beginscherm: geen adresbalk, alleen statusbalk (S24: 780 - 24; iPhone 14: 844)
-    const d = name === 'iPhone 14 app' ? { ...devices['iPhone 14'], viewport: { width: 390, height: 844 } } : name === 'Galaxy S24 app' ? { ...devices['Galaxy S24'], viewport: { width: 360, height: 756 } } : name === 'Galaxy S24' ? { ...devices['Galaxy S24'], viewport: { width: 360, height: 700 } } : devices[name]
+    // Galaxy A54: 1080×2340 bij dpr 2,8125 = 384×832; als app ± 760 hoog, in Chrome ± 700
+    const a54 = { ...devices['Galaxy S24'], deviceScaleFactor: 2.8125 }
+    const d = name === 'Galaxy A54 app' ? { ...a54, viewport: { width: 384, height: 760 } } : name === 'Galaxy A54' ? { ...a54, viewport: { width: 384, height: 700 } } : name === 'iPhone 14 app' ? { ...devices['iPhone 14'], viewport: { width: 390, height: 844 } } : name === 'Galaxy S24 app' ? { ...devices['Galaxy S24'], viewport: { width: 360, height: 756 } } : name === 'Galaxy S24' ? { ...devices['Galaxy S24'], viewport: { width: 360, height: 700 } } : devices[name]
     const ctx = await b.newContext({ ...d, deviceScaleFactor: 1, geolocation: { latitude: 51.445, longitude: 3.58 }, permissions: ['geolocation'], timezoneId: 'Europe/Amsterdam', locale: 'nl-NL' })
     const p = await ctx.newPage()
     const errs = []
