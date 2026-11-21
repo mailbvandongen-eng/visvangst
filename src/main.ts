@@ -81,16 +81,15 @@ const choice = (): Choice => {
   return CHOICES.find(c => c.id === S.choice[w] && c.water === w) ?? CHOICES.find(c => c.water === w)!
 }
 
-function wxIcon(code: number, isDay: boolean, sunFrac: number) {
+// Icoon uit de weercode van Open-Meteo (0 helder, 1 licht bewolkt, 2 half bewolkt, 3 bewolkt, 51+ neerslag),
+// zodat het icoon en de bewolking elkaar niet tegenspreken.
+function wxIcon(code: number, isDay: boolean, _sunFrac = 0) {
   if (code >= 95) return 'cloud_with_lightning_and_rain'
   if (code >= 71 && code <= 77 || code === 85 || code === 86) return 'cloud_with_snow'
-  if (code >= 51) return isDay && sunFrac > 0.2 ? 'sun_behind_rain_cloud' : 'cloud_with_rain'
+  if (code >= 51) return isDay && code <= 61 ? 'sun_behind_rain_cloud' : 'cloud_with_rain'
   if (code === 45 || code === 48) return 'fog'
-  if (!isDay) return code >= 3 ? 'cloud' : 'crescent_moon'
-  if (code === 0 || sunFrac > 0.85) return 'sun'
-  if (code === 1 || sunFrac > 0.55) return 'sun_behind_small_cloud'
-  if (code === 2 || sunFrac > 0.2) return 'sun_behind_cloud'
-  return sunFrac > 0.05 ? 'sun_behind_large_cloud' : 'cloud'
+  if (!isDay) return code >= 2 ? 'cloud' : 'crescent_moon'
+  return code === 0 ? 'sun' : code === 1 ? 'sun_behind_small_cloud' : code === 2 ? 'sun_behind_cloud' : 'cloud'
 }
 
 function moonInfo(t: number) {
@@ -384,6 +383,8 @@ function render() {
   ${S.sheet === 'menu' ? menuSheet() : ''}`
 
   initCharts($app)
+  // Per-uur-lijst: het gekozen uur in beeld
+  $app.querySelector('.hlist .hl.sel')?.scrollIntoView({ block: 'center' })
 }
 
 function waterName(b: WaterBody) {
@@ -884,25 +885,29 @@ function tideDetail() {
 
 function hoursDetail(v: DayView) {
   const W = D.weather!
-  const zout = S.water === 'zout'
+  const temps = v.hours.map(h => h.waterTemp).filter((x): x is number => x != null)
+  const wi = D.waterInfo[D.wIdx]
+  const water = temps.length ? `Water ${fmt(Math.min(...temps), 1)}${Math.max(...temps) - Math.min(...temps) >= 0.1 ? `–${fmt(Math.max(...temps), 1)}` : ''}° · ${wi?.src ?? ''}` : ''
   const rows = v.hours.map((h, i) => {
     const k = W.time.indexOf(h.t)
     const s = v.scores[i]
-    return `<tr class="${i === v.si ? 'sel' : ''} ${S.day === 0 && h.t < v.nowH ? 'past' : ''}">
-      <td>${hhmm(h.t)}</td>
-      <td><img src="${icon(wxIcon(W.code[k], !!W.isDay[k], h.sunFrac))}" alt=""></td>
-      <td>${fmt(W.temp[k])}°</td>
-      <td class="${h.rainProb >= 30 ? 'rc' : ''}">${h.rainProb >= 10 ? `${h.rainProb}%${h.rainMm >= 0.1 ? ` <small>${fmt(h.rainMm, 1)}</small>` : ''}` : '–'}</td>
-      <td><span class="hwind"><svg viewBox="0 0 10 10" style="transform:rotate(${h.windDir + 180}deg)"><path d="M5 1l3 7-3-1.6L2 8z"/></svg>${bft(h.windKmh)}</span> <small>${fmt(h.gustKmh)}</small></td>
-      <td>${fmt(h.cloud)}%</td>
-      ${zout ? `<td>${h.waves != null ? fmt(h.waves, 1) : '–'}</td>` : ''}
-      <td>${h.waterTemp != null ? fmt(h.waterTemp, 1) + '°' : '–'}</td>
-      <td class="fs">${fmt(s.fish, s.fish % 1 ? 1 : 0)}</td>
-    </tr>`
+    const rain = h.rainProb >= 10
+      ? `<b class="rc">${h.rainProb}%</b>${h.rainMm >= 0.1 ? `<small>${fmt(h.rainMm, 1)} mm</small>` : ''}`
+      : '<span class="dim">droog</span>'
+    return `<button class="hl ${i === v.si ? 'sel' : ''} ${S.day === 0 && h.t < v.nowH ? 'past' : ''}" data-act="hour" data-v="${h.t}">
+      <span class="hlt">${hhmm(h.t)}</span>
+      <img src="${icon(wxIcon(W.code[k], !!W.isDay[k]))}" alt="">
+      <span class="hltemp">${fmt(W.temp[k])}°</span>
+      <span class="hlcell">${rain}</span>
+      <span class="hlcell"><b><svg class="arrow" viewBox="0 0 10 10" style="transform:rotate(${h.windDir + 180}deg)"><path d="M5 1l3 7-3-1.6L2 8z"/></svg>${bft(h.windKmh)} Bft</b><small>stoten ${fmt(h.gustKmh)} km/u</small></span>
+      <span class="hlfish">${fmt(s.fish, s.fish % 1 ? 1 : 0)}<i class="mfish"></i></span>
+    </button>`
   }).join('')
-  return `<div class="tablewrap"><table class="htable">
-    <thead><tr><th>Tijd</th><th></th><th>Lucht</th><th>Regen</th><th>Wind <small>stoot km/u</small></th><th>Wolken</th>${zout ? '<th>Golf m</th>' : ''}<th>Water</th><th>Vis</th></tr></thead>
-    <tbody>${rows}</tbody></table></div>`
+  return `${water ? `<p class="dnote">${water}</p>` : ''}
+    <div class="hlist">
+      <div class="hl head"><span>Tijd</span><span></span><span>Lucht</span><span>Regen</span><span>Wind</span><span>Vis</span></div>
+      ${rows}
+    </div>`
 }
 
 function welcome() {
