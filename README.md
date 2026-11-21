@@ -21,6 +21,7 @@ Eén scherm dat zich aanpast aan elke telefoon (iPhone, Samsung, Pixel, Fold) en
   - Visjes: waarom de score is wat hij is, per factor en per soort.
   - Per uur: tabel met wind en windstoten, bewolking, golven, watertemperatuur.
   Sluiten met het kruisje, naast het venster tikken of naar beneden vegen.
+- **Buienradar**: boven de curve één regel voor de komende twee uur ("Droog tot 15:15", "Regen vanaf 14:30"); tik erop voor een radaranimatie van de afgelopen twee uur rond je plek en de regen per kwartier.
 - **Menu**: uitleg, bronnen, donker of licht (standaard donker, onthouden).
 
 ## Wateren herkennen
@@ -52,6 +53,8 @@ De factoren worden gecombineerd met een gewogen meetkundig gemiddelde, zodat é�
 - Weer, golven, zeewatertemperatuur en rivierafvoer: [Open-Meteo](https://open-meteo.com) (CC BY 4.0)
 - Getijvoorspelling en watertemperatuur: Rijkswaterstaat (Waterwebservices)
 - Maanfoto's: NASA Scientific Visualization Studio (Dial-A-Moon)
+- Regen per kwartier: Open-Meteo (minutely_15, in Nederland het KNMI-model)
+- Radarbeelden: [RainViewer](https://www.rainviewer.com) (gratis, zoomniveau 7); kaartondergrond © OpenStreetMap-bijdragers
 - Plaatsnaam: © OpenStreetMap-bijdragers (Nominatim)
 - Iconen: [Microsoft Fluent Emoji](https://github.com/microsoft/fluentui-emoji) (MIT)
 - Vissilhouetten en het score-visje (voorn): [PhyloPic](https://www.phylopic.org) (publiek domein / CC0)
@@ -66,4 +69,4 @@ npm run data     # getij, watertemperatuur en maan ophalen naar public/data
 npm run dev
 ```
 
-Testen (Chromium via playwright-core): `tools/devices.cjs` (15 toestellen: past alles, geen lege ruimte), `tools/touch.cjs` (schuiven, vensters, vegen), `tools/flow.cjs` (zoeken, station, thema), `tools/dist.cjs` (scoreverdeling).
+Testen (Chromium via playwright-core): `tools/radar.cjs` (buienradar: regel, beelden, animatie, schuif), `tools/devices.cjs` (15 toestellen: past alles, geen lege ruimte), `tools/touch.cjs` (schuiven, vensters, vegen), `tools/flow.cjs` (zoeken, station, thema), `tools/dist.cjs` (scoreverdeling).

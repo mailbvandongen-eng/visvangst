@@ -10,6 +10,7 @@ import { CHOICES, PROFILES, LABELS, closedSeason, scoreHour, factorCosts, bft, t
 import { chart, scrubTo, indexAt, initCharts } from './chart'
 import { findWaters, widthLabel, type WaterBody } from './waters'
 import { simulate } from './watertemp'
+import { loadRainNow, loadRadar, rainLine, worldPx, perHour, intensity, type RainNow, type RadarFrame } from './rain'
 
 const BASE = import.meta.env.BASE_URL
 const icon = (n: string) => `${BASE}icons/${n}.webp`
@@ -33,6 +34,8 @@ const S = {
   search: [] as { name: string; sub: string; lat: number; lon: number }[],
   locating: false,
   error: '' as string,
+  radarI: -1,          // getoond radarbeeld (−1 = laatste)
+  radarPlay: true,
 }
 const persist = () => localStorage.setItem('visvangst', JSON.stringify({ loc: S.loc, water: S.water, choice: S.choice, tideOverride: S.tideOverride, theme: S.theme }))
 
@@ -61,6 +64,9 @@ const D = {
   waterInfo: [] as WaterInfo[],
   waterHours: [] as { wide: HourInput[]; hours: HourInput[] }[],
   wIdx: 0,
+  rain: null as RainNow | null,
+  radar: [] as RadarFrame[],
+  radarAt: 0,
 }
 interface WaterInfo { src: string; uncertain: boolean; depthUnknown: boolean }
 
@@ -130,11 +136,11 @@ async function loadAll() {
   S.error = ''
   render()
   try {
-    const [index, weather, marine, river] = await Promise.all([
+    const [index, weather, marine, river, rain] = await Promise.all([
       D.index ? Promise.resolve(D.index) : loadIndex(),
-      loadWeather(lat, lon), loadMarine(lat, lon), loadRiver(lat, lon),
+      loadWeather(lat, lon), loadMarine(lat, lon), loadRiver(lat, lon), loadRainNow(lat, lon),
     ])
-    Object.assign(D, { index, weather, marine, river })
+    Object.assign(D, { index, weather, marine, river, rain })
     if (!S.water) { S.water = 'zoet'; persist() }
     D.tideList = index.tide.map(s => ({ ...s, d: km(s, S.loc!) })).sort((a, b) => a.d - b.d)
     // Wateren in de buurt (TOP10NL); bij een gezochte plek een ruimere straal dan bij GPS
@@ -541,9 +547,108 @@ function dayCard(v: DayView) {
   return `<section class="card daycard" ${vt('hours')}>
     <div class="dhead"><span>Vangstkans per uur</span>${v.win ? `<span class="dbest">beste ${v.win}</span>` : ''}
       <button class="dmore" data-act="open" data-v="hours">Details ${more}</button></div>
+    ${rainRow()}
     ${curve}
     <div class="hrow" style="--n:${blocks.length}">${blocks.join('')}</div>
   </section>`
+}
+
+// ---------- buienradar ----------
+/** Eén rustige regel boven de curve (alleen vandaag): droog of regen in de komende twee uur */
+function rainRow() {
+  if (S.day !== 0 || !D.rain) return ''
+  const r = rainLine(D.rain, Date.now(), hhmm)
+  if (!r) return ''
+  return `<button class="rainline ${r.wet ? 'wet' : ''}" data-act="open" data-v="rain" ${vt('rain')}>
+    <svg viewBox="0 0 12 12"><path d="M6 1.5C4.6 3.6 3.2 5.3 3.2 7a2.8 2.8 0 005.6 0c0-1.7-1.4-3.4-2.8-5.5z"/></svg>${r.text}${more}</button>`
+}
+
+// Ondergrond: OpenStreetMap (gratis met naamsvermelding); in donker thema met een filter gedimd
+const BASEMAP = 'https://tile.openstreetmap.org/7/{x}/{y}.png'
+let radarTimer = 0
+
+function radarTiles() {
+  const c = worldPx(S.loc!.lat, S.loc!.lon)
+  // Tegels rond je plek: genoeg voor een kaart tot 640 × 360 pixels
+  const out: { x: number; y: number; left: number; top: number }[] = []
+  for (let ty = Math.floor((c.y - 190) / 256); ty <= Math.floor((c.y + 190) / 256); ty++)
+    for (let tx = Math.floor((c.x - 330) / 256); tx <= Math.floor((c.x + 330) / 256); tx++)
+      out.push({ x: tx, y: ty, left: tx * 256 - c.x, top: ty * 256 - c.y })
+  return out
+}
+
+function radarFrameIdx() { return S.radarI < 0 || S.radarI >= D.radar.length ? D.radar.length - 1 : S.radarI }
+
+function radarLabel(i: number) {
+  const f = D.radar[i]
+  if (!f) return ''
+  const ago = Math.round((Date.now() - f.time) / 60000)
+  return `${hhmm(f.time)} <small>${ago <= 5 ? 'laatste beeld' : `${ago} min geleden`}</small>`
+}
+
+function rainDetail() {
+  const tiles = radarTiles()
+  const base = tiles.map(t => `<img class="rt rb0" style="left:calc(50% + ${t.left}px);top:calc(50% + ${t.top}px)" src="${BASEMAP.replace('{x}', String(t.x)).replace('{y}', String(t.y))}" alt="">`).join('')
+  const i = radarFrameIdx()
+  const f = D.radar[i]
+  const over = f ? tiles.map(t => `<img class="rt rr" data-x="${t.x}" data-y="${t.y}" style="left:calc(50% + ${t.left}px);top:calc(50% + ${t.top}px)" src="${f.url.replace('{x}', String(t.x)).replace('{y}', String(t.y))}" alt="">`).join('') : ''
+  // Regen per kwartier: het afgelopen uur en de komende twee uur
+  let bars = ''
+  if (D.rain) {
+    const r = D.rain
+    const mx = Math.max(2, ...r.mm.map(perHour))
+    const now = Date.now()
+    const none = r.mm.every(x => perHour(x) < 0.05)
+    bars = `<div class="rbars">${none ? '<em class="rnone">Geen neerslag gemeten of verwacht</em>' : ''}${r.time.map((t, k) => {
+      const h = perHour(r.mm[k])
+      const past = t + 15 * 60000 <= now, cur = t <= now && now < t + 15 * 60000
+      return `<div class="rb ${past ? 'past' : ''} ${cur ? 'cur' : ''}" title="${hhmm(t)} · ${fmt(h, 1)} mm/u"><i style="height:${h < 0.05 ? 0 : Math.max(4, (h / mx) * 100)}%"></i><span>${new Date(t).getMinutes() === 0 || cur ? (cur ? 'nu' : hhmm(t)) : ''}</span></div>`
+    }).join('')}</div>`
+    const line = rainLine(r, now, hhmm)
+    const peak = Math.max(...r.time.map((t, k) => t + 15 * 60000 > now ? perHour(r.mm[k]) : 0))
+    bars = `<h3>${line ? line.text : 'Komende twee uur'}</h3>${bars}<p class="dnote">Per kwartier, in mm per uur${peak >= 0.2 ? `; het meeste rond ${fmt(peak, 1)} mm/u (${intensity(peak)})` : ''}. Verwachting van Open-Meteo; in Nederland komt die uit het KNMI-model, elk kwartier bijgewerkt.</p>`
+  }
+  return `<div class="rmap">${base}<div class="rlayer">${over}</div><i class="rme"></i></div>
+    ${D.radar.length ? `<div class="rctl">
+      <button class="round" data-act="radar-play" aria-label="${S.radarPlay ? 'Pauze' : 'Afspelen'}">${S.radarPlay ? '<svg viewBox="0 0 14 14"><path d="M4.5 3v8M9.5 3v8"/></svg>' : '<svg viewBox="0 0 14 14"><path d="M4.5 3l6 4-6 4z"/></svg>'}</button>
+      <input class="slider" type="range" min="0" max="${D.radar.length - 1}" value="${i}" data-act="radar-frame" aria-label="Tijd">
+      <span class="rtime">${radarLabel(i)}</span>
+    </div>` : `<p class="dnote">${D.radarAt ? 'De radarbeelden konden niet worden geladen.' : 'Radarbeelden laden…'}</p>`}
+    ${bars}
+    <p class="small src">Radar: RainViewer (afgelopen 2 uur, per 10 min) · Kaart: © OpenStreetMap-bijdragers</p>`
+}
+
+/** Alleen de radarlaag en de tijd bijwerken (niet het hele scherm opnieuw tekenen tijdens het afspelen) */
+function showRadarFrame(i: number) {
+  const f = D.radar[i]
+  if (!f) return
+  $app.querySelectorAll<HTMLImageElement>('.rr').forEach(img => { img.src = f.url.replace('{x}', img.dataset.x!).replace('{y}', img.dataset.y!) })
+  const sl = $app.querySelector<HTMLInputElement>('[data-act=radar-frame]')
+  if (sl) sl.value = String(i)
+  const tl = $app.querySelector('.rtime')
+  if (tl) tl.innerHTML = radarLabel(i)
+}
+
+function radarLoop() {
+  clearTimeout(radarTimer)
+  if (S.detail !== 'rain' || !S.radarPlay || D.radar.length < 2) return
+  const i = radarFrameIdx()
+  const next = i >= D.radar.length - 1 ? 0 : i + 1
+  // Op het laatste beeld even blijven staan
+  radarTimer = window.setTimeout(() => { S.radarI = next; showRadarFrame(next); radarLoop() }, i === D.radar.length - 1 ? 1800 : 550)
+}
+
+async function openRain() {
+  S.radarI = -1
+  S.radarPlay = true
+  if (!D.radar.length || Date.now() - D.radarAt > 5 * 60000) {
+    D.radar = await loadRadar().catch(() => [])
+    D.radarAt = Date.now()
+    // Alle beelden alvast laden, zodat de animatie niet hapert
+    const tiles = radarTiles()
+    for (const f of D.radar) for (const t of tiles) { const im = new Image(); im.src = f.url.replace('{x}', String(t.x)).replace('{y}', String(t.y)) }
+    if (S.detail === 'rain') { render(); radarLoop() }
+  }
 }
 
 // ---------- grote vensters (tik op een tegel) ----------
@@ -570,8 +675,8 @@ function nightBands(from: number, to: number, step: number) {
 }
 
 function detailView(k: string, v: DayView) {
-  const titles: Record<string, string> = { score: 'Vangstkans', moon: 'Maan', pressure: 'Luchtdruk', temp: 'Temperatuur', tide: 'Getij', hours: 'Per uur' }
-  const body = k === 'score' ? scoreDetail(v) : k === 'moon' ? moonDetail() : k === 'pressure' ? pressureDetail() : k === 'temp' ? tempDetail() : k === 'tide' ? tideDetail() : hoursDetail(v)
+  const titles: Record<string, string> = { score: 'Vangstkans', moon: 'Maan', pressure: 'Luchtdruk', temp: 'Temperatuur', tide: 'Getij', hours: 'Per uur', rain: 'Buienradar' }
+  const body = k === 'rain' ? rainDetail() : k === 'score' ? scoreDetail(v) : k === 'moon' ? moonDetail() : k === 'pressure' ? pressureDetail() : k === 'temp' ? tempDetail() : k === 'tide' ? tideDetail() : hoursDetail(v)
   return `<div class="dscrim" data-act="close-detail"></div>
   <div class="detail" role="dialog" aria-label="${titles[k]}" style="view-transition-name:vt-${k}">
     <div class="dtop"><div class="dgrab"></div><h2>${titles[k]}</h2>
@@ -846,7 +951,7 @@ function menuSheet() {
     <p>Bij een groep (roofvis, zeevis) telt de soort met de beste kans. Morgen en overmorgen zijn een verwachting.</p>
     <p class="small">Een score is een onderbouwde schatting, geen garantie. Let op de regels van je viswater.</p>
     <h3>Bronnen</h3>
-    <p class="small">Weer, golven en rivierafvoer: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> (CC BY 4.0). Getij en watertemperatuur: Rijkswaterstaat. Maanfoto's: NASA Scientific Visualization Studio. Locatienaam: © OpenStreetMap. Iconen: Microsoft Fluent Emoji (MIT). Vissilhouetten: PhyloPic (publiek domein / CC0).</p>
+    <p class="small">Weer, golven, rivierafvoer en regen per kwartier: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> (CC BY 4.0; in Nederland het KNMI-model). Buienradar: RainViewer, kaart © OpenStreetMap. Getij en watertemperatuur: Rijkswaterstaat. Maanfoto's: NASA Scientific Visualization Studio. Locatienaam: © OpenStreetMap. Iconen: Microsoft Fluent Emoji (MIT). Vissilhouetten: PhyloPic (publiek domein / CC0).</p>
     <p class="small">Bijgewerkt: getij en watertemperatuur ${D.index ? hhmm(D.index.generated) : '–'}, weer bij het openen.</p>
     <p class="small">Op je beginscherm zetten: iPhone via Deel → "Zet op beginscherm", Android via het menu → "Toevoegen aan startscherm".</p>
     <button class="btn" data-act="close">Sluiten</button>
@@ -864,7 +969,8 @@ $app.addEventListener('click', async e => {
   else if (act === 'day') { S.day = Math.max(0, Math.min(2, S.day + Number(v))); S.sel = null; pickWater(); render() }
   else if (act === 'wsel') { S.wSel = Number(v); pickWater(); render() }
   else if (act === 'hour') { const t = Number(v); S.sel = S.sel === t ? null : t; render() }
-  else if (act === 'open') { if (v === 'moon') S.moonDay = 0; setDetail(v!) }
+  else if (act === 'open') { if (v === 'moon') S.moonDay = 0; setDetail(v!); if (v === 'rain') { openRain(); radarLoop() } }
+  else if (act === 'radar-play') { S.radarPlay = !S.radarPlay; render(); radarLoop() }
   else if (act === 'close-detail') setDetail(null)
   else if (act === 'sheet-loc') { S.sheet = 'loc'; S.search = []; render(); $app.querySelector<HTMLInputElement>('.search')?.focus() }
   else if (act === 'sheet-menu') { S.sheet = 'menu'; render() }
@@ -886,6 +992,14 @@ document.documentElement.style.setProperty('--fishm', `url(${BASE}fish/voorn.svg
 })
 $app.addEventListener('input', e => {
   const el = e.target as HTMLInputElement
+  if (el.dataset.act === 'radar-frame') {
+    // Schuiven stopt het afspelen en toont dat beeld
+    S.radarPlay = false; clearTimeout(radarTimer)
+    S.radarI = Number(el.value); showRadarFrame(S.radarI)
+    const b = $app.querySelector('[data-act=radar-play]')
+    if (b) b.innerHTML = '<svg viewBox="0 0 14 14"><path d="M4.5 3l6 4-6 4z"/></svg>'
+    return
+  }
   if (el.dataset.act === 'moonday') {
     // Alleen de maan bijwerken, zodat de schuifbalk niet opnieuw getekend wordt tijdens het schuiven
     S.moonDay = Number(el.value)
@@ -917,6 +1031,7 @@ document.addEventListener('keydown', e => {
 
 // Venster openen en sluiten; waar het kan groeit de tegel vloeiend uit (View Transitions)
 function setDetail(k: string | null) {
+  if (k !== 'rain') clearTimeout(radarTimer)
   const go = () => { S.detail = k; render() }
   const doc = document as any
   if (doc.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) doc.startViewTransition(go)
